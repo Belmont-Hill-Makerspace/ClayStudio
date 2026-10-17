@@ -2,6 +2,9 @@
 
 **Design ceramic pieces in your browser and print them on the Eazao Potter X-1 clay printer.**
 
+**AI Useage Disclosure**
+This tool was ported and expanded to a stand alone system using Claude Opus 5.5, based on a Grasshopper project I was working on, which was in turn based on numerous tutorials from youtube and workshops from ControlMAD. The intention was to build custom non planar gcode directly for ceramic 3d printing. The original project was to give my students a "generator" for various shapes that we could use allow them to use the Eazao without 3d modeling experience. The settings etc used to print are taken directly from the Cura profiles that Eazao supplied on an SD card when I purchased the machine, and I have used this tool many times successfully already.
+
 👉 **Open Clay Studio:** https://Belmont-Hill-Makerspace.github.io/ClayStudio/
 
 Clay Studio is a single web page. There's nothing to install and no account to make. Pick a starting shape, adjust it with sliders and a drawn side profile, add your initials to the foot, and save a print file. Everything runs in your own browser, and no designs or personal information are sent anywhere.
