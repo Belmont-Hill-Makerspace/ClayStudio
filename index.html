@@ -83,6 +83,10 @@ main { position: relative; display: grid; grid-template-rows: 1fr auto; min-heig
 #view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .viewbar { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
 .viewbar .seg { margin: 0; background: var(--panel); }
+.player { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px 3px 4px; }
+.player button { border: 0; background: var(--glaze); color: var(--glaze-ink); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-weight: 700; white-space: nowrap; }
+.player input { width: 160px; accent-color: var(--glaze); }
+.player span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .dims { position: absolute; left: 16px; bottom: 14px; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 14px;
   background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 6px 10px; border-radius: 8px; max-width: calc(100% - 32px); }
 .dims strong { color: var(--ink); }
@@ -97,6 +101,8 @@ main { position: relative; display: grid; grid-template-rows: 1fr auto; min-heig
 .status summary { font-size: 14px; font-weight: 400; color: var(--muted); padding: 2px 0; }
 
 .machine { margin: 0; font-size: 13px; }
+.actions .check { margin: 0; font-size: 14px; }
+.actions .check .hint, .hint { color: var(--muted); font-size: 13px; }
 .advanced { margin-top: 14px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; }
 .switch { display: flex; gap: 8px; align-items: center; font-weight: 700; cursor: pointer; }
 .switch input { width: 18px; height: 18px; accent-color: var(--glaze); }
@@ -209,10 +215,28 @@ body:not(.teacher) .teacher-only { display: none !important; }
           <div data-num="depth" data-label="Depth" data-unit="mm" data-hint="how far it stands out" data-min="0.2" data-max="3" data-step="0.1"></div>
           <div class="only-rep" data-num="repeats" data-label="How many around" data-min="2" data-max="60" data-step="1"></div>
           <div class="only-pitch" data-num="pitch" data-label="Pattern height" data-unit="mm" data-min="5" data-max="200" data-step="1"></div>
+        </div>
+        <div class="only-fade">
           <div data-num="fade_top" data-label="Smooth band at the lip" data-unit="mm" data-min="0" data-max="30" data-step="1"></div>
           <div data-num="fade_bottom" data-label="Smooth band at the foot" data-unit="mm" data-min="0" data-max="30" data-step="1"></div>
+          <p class="note">The smooth bands apply to both the surface pattern and the bead texture.</p>
         </div>
         <button class="reset" data-reset="pattern">Reset pattern</button>
+      </details>
+
+      <details>
+        <summary>Bead texture</summary>
+        <p class="note">Instead of changing the shape, the printer pushes a little more or less clay as it goes, so the bead itself swells and thins. It never changes how far the wall leans.</p>
+        <div class="seg" id="bead" role="group" aria-label="Bead texture">
+          <button data-v="STEADY">Even</button><button data-v="PEARLS">Pearls</button><button data-v="KNIT">Knit</button><button data-v="DIAGONAL">Diagonal</button>
+        </div>
+        <p class="note" id="beadNote"></p>
+        <div class="only-bead">
+          <div data-num="bead_amt" data-label="Strength" data-unit="%" data-hint="how much the bead swells" data-min="5" data-max="45" data-step="1"></div>
+          <div data-num="bead_n" data-label="Swells around" data-min="4" data-max="80" data-step="1"></div>
+          <p class="note">New and untested on the printer: try a small piece first to see how strongly it shows.</p>
+        </div>
+        <button class="reset" data-reset="bead">Reset bead texture</button>
       </details>
 
       <details>
@@ -245,6 +269,8 @@ body:not(.teacher) .teacher-only { display: none !important; }
         <div data-num="Speed" data-label="Speed" data-unit="mm/s" data-min="10" data-max="40" data-step="1"></div>
         <div data-num="Mix" data-label="Clay flow (M163 mix)" data-hint="higher = less clay" data-min="0.7" data-max="0.95" data-step="0.01"></div>
         <div data-num="BaseLayers" data-label="Solid base layers" data-min="0" data-max="6" data-step="1"></div>
+        <div data-num="SkirtLaps" data-label="Priming loop laps" data-hint="0 = off" data-min="0" data-max="3" data-step="1"></div>
+        <div data-num="FirstSpeed" data-label="First layer speed" data-unit="mm/s" data-min="8" data-max="40" data-step="1"></div>
         <div data-num="MaxStep" data-label="Overhang warning" data-unit="% of line" data-min="20" data-max="60" data-step="1"></div>
         <label class="check"><input type="checkbox" id="Spiral"> Spiral walls (vase mode)</label>
       </details>
@@ -290,6 +316,8 @@ body:not(.teacher) .teacher-only { display: none !important; }
       </div>
     </div>
     <div class="actions">
+      <label class="check" title="Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer.">
+        <input type="checkbox" id="adaptive"> Adaptive layers <span class="hint">(thinner where the wall flares)</span></label>
       <button class="primary" id="dlG">Save the print file</button>
       <p class="note" id="saved" aria-live="polite"></p>
       <p class="note machine">Print files from this page are set up only for the <strong>Eazao Potter X-1</strong> clay printer: its 167 mm plate, clay nozzle and settings. Don’t run them on any other printer.</p>
@@ -302,6 +330,11 @@ body:not(.teacher) .teacher-only { display: none !important; }
       <div class="viewbar">
         <div class="seg" id="viewmode" role="group" aria-label="View">
           <button data-v="SHAPE">Piece</button><button data-v="WIRE">Wireframe</button><button data-v="PATH">Nozzle path</button><button data-v="BOTH">Both</button>
+        </div>
+        <div class="player">
+          <button id="playBtn" aria-label="Watch it print">▶ Watch it print</button>
+          <input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="How far through the print">
+          <span id="playInfo"></span>
         </div>
       </div>
       <div class="dims" id="dims"></div>
@@ -1381,7 +1414,8 @@ var ClayCore = (function () {
   var EAZAO_END = ['G92 Z0 E0', 'G1 F1500 Z10 E-2', 'M82', 'M84 ;steppers off'];
   var DEFAULTS = { LayerH: 1.0, LineW: 3.0, Flow: 1.0, FilDia: 1.75, Speed: 25.0, Mix: 0.85, BaseLayers: 3,
     ZigZag: false, WallLoops: 1, Spacing: 1.0, Spiral: true, Center: true, BedX: 167.0, BedY: 167.0, BedZ: 280.0,
-    MaxStep: 50.0, AutoFix: false, Height: 0.0 };
+    MaxStep: 50.0, AutoFix: false, Height: 0.0, Adaptive: false, AdaptMin: 0.6, AdaptStep: 0.75,
+    SkirtLaps: 0, SkirtGap: 5.0, FirstSpeed: 0 };
 
   function mod(a, n) { return ((a % n) + n) % n; }
   function pyRound(x) {                       // Python 3 round(): halves go to even
@@ -1589,21 +1623,36 @@ var ClayCore = (function () {
     return loop[0];
   }
 
-  function build_toolpath(layers, s, base_inner, wall_inner) {
+  // zt/hs: top height and thickness of every layer (adaptive layers make these uneven).
+  // flow(sFrac, z, layer, toRim) -> clay flow multiplier for wall layers (bead textures).
+  // A print move carries a 5th value (effective thickness) only when it differs from LayerH,
+  // so the output is unchanged when both features are off.
+  function build_toolpath(layers, s, base_inner, wall_inner, zt, hs, flow, ztop) {
     var LayerH = s.LayerH, LineW = s.LineW, moves = [];
+    function pm(x, y, z, h, f) {
+      var t = h * f;
+      return Math.abs(t - LayerH) < 1e-9 ? ['print', x, y, z] : ['print', x, y, z, t];
+    }
     layers.forEach(function (loop, i) {
-      var z = (i + 1) * LayerH, is_base = i < s.BaseLayers, k;
+      var z = zt ? zt[i] : (i + 1) * LayerH, h = hs ? hs[i] : LayerH, is_base = i < s.BaseLayers, k;
       moves.push(['layer', i, 0.0, z]);
       if (s.Spiral && !is_base && i > 0) {
         var pts = loop.concat([loop[0]]), seg = [0];
         for (k = 1; k < pts.length; k++) seg.push(seg[k - 1] + hyp(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
-        var L = seg[seg.length - 1] > 0 ? seg[seg.length - 1] : 1, z0 = z - LayerH;
+        var L = seg[seg.length - 1] > 0 ? seg[seg.length - 1] : 1, z0 = z - h;
         moves.push(['travel', pts[0][0], pts[0][1], z0]);
-        for (k = 1; k < pts.length; k++) moves.push(['print', pts[k][0], pts[k][1], z0 + LayerH * seg[k] / L]);
+        for (k = 1; k < pts.length; k++) {
+          var zz = z0 + h * seg[k] / L;
+          moves.push(pm(pts[k][0], pts[k][1], zz, h, flow ? flow(seg[k] / L, zz, i, ztop - zz) : 1));
+        }
         return;
       }
       moves.push(['travel', loop[0][0], loop[0][1], z]);
-      loop.slice(1).concat([loop[0]]).forEach(function (p) { moves.push(['print', p[0], p[1], z]); });
+      var Lp = perimeter(loop), acc = 0, prevp = loop[0];
+      loop.slice(1).concat([loop[0]]).forEach(function (p) {
+        acc += hyp(p[0] - prevp[0], p[1] - prevp[1]); prevp = p;
+        moves.push(pm(p[0], p[1], z, h, (flow && !is_base) ? flow(acc / Lp, z, i, ztop - z) : 1));
+      });
       var last = loop[0];
       if (is_base) {
         var inner = base_inner[i] || [];
@@ -1648,10 +1697,12 @@ var ClayCore = (function () {
     start_lines.forEach(function (l) { g.push(l); });
     g.push('G92 E0');
     g.push(';LAYER_COUNT:' + moves.filter(function (m) { return m[0] === 'layer'; }).length);
-    var e = 0, cx = null, cy = null, cz = null, plen = 0, tlen = 0;
+    var e = 0, cx = null, cy = null, cz = null, plen = 0, tlen = 0, ptime = 0;
+    var Ffirst = (s.FirstSpeed && s.FirstSpeed > 0) ? pyRound(s.FirstSpeed * 60) : F, first = true;
     for (var i = 0; i < moves.length; i++) {
       var mv = moves[i], kind = mv[0], x = mv[1], y = mv[2], z = mv[3], d;
-      if (kind === 'layer') { g.push(';LAYER:' + x); continue; }
+      if (kind === 'note') { g.push(';' + x); continue; }
+      if (kind === 'layer') { if (x > 0) first = false; g.push(';LAYER:' + x); continue; }
       if (kind === 'travel') {
         if (cx === null) {
           g.push('G1 F' + Ft + ' E' + fmt(-RETRACT));
@@ -1678,14 +1729,16 @@ var ClayCore = (function () {
         d = Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy) + (z - cz) * (z - cz));
         if (d < 1e-4) continue;
         e += d * (mv.length < 5 ? e_per_mm : e_per_mm * mv[4] / s.LayerH);
-        if (Math.abs(z - cz) > 1e-6) g.push('G1 F' + F + ' X' + fmt(x) + ' Y' + fmt(y) + ' Z' + fmt(z) + ' E' + fixed(e, 5));
-        else g.push('G1 F' + F + ' X' + fmt(x) + ' Y' + fmt(y) + ' E' + fixed(e, 5));
+        var Fm = first ? Ffirst : F;
+        ptime += d / (Fm / 60);
+        if (Math.abs(z - cz) > 1e-6) g.push('G1 F' + Fm + ' X' + fmt(x) + ' Y' + fmt(y) + ' Z' + fmt(z) + ' E' + fixed(e, 5));
+        else g.push('G1 F' + Fm + ' X' + fmt(x) + ' Y' + fmt(y) + ' E' + fixed(e, 5));
         plen += d; cx = x; cy = y; cz = z;
       }
     }
     g.push('G1 F' + Ft + ' E' + fixed(e - RETRACT, 5));
     end_lines.forEach(function (l) { g.push(l); });
-    return [g, plen, tlen, e];
+    return [g, plen, tlen, e, ptime];
   }
 
   // ---------------- non-planar top ----------------
@@ -1768,7 +1821,7 @@ var ClayCore = (function () {
       tilt: top.tilt || 0, z0: z0 };
   }
 
-  function build_sloped_moves(moves, sl, s, first_index, dx, dy) {
+  function build_sloped_moves(moves, sl, s, first_index, dx, dy, flow) {
     var z0 = sl.z0, prev_z = null;
     sl.loops.forEach(function (lay, k) {
       var pts = lay.map(function (p) { return [p[0] + dx, p[1] + dy, p[2], p[3]]; }), i;
@@ -1782,7 +1835,8 @@ var ClayCore = (function () {
         moves.push(['travel', ring[0][0], ring[0][1], zb[0]]);
         for (i = 1; i < ring.length; i++) {
           var f = seg[i] / L;
-          moves.push(['print', ring[i][0], ring[i][1], zb[i] + f * (ring[i][2] - zb[i]), ring[i][3]]);
+          var zq = zb[i] + f * (ring[i][2] - zb[i]), rimz = z0 + sl.n * ring[i][3];
+          moves.push(['print', ring[i][0], ring[i][1], zq, ring[i][3] * (flow ? flow(f, zq, first_index + k, rimz - zq) : 1)]);
         }
       } else {
         moves.push(['travel', pts[0][0], pts[0][1], pts[0][2]]);
@@ -1884,16 +1938,89 @@ var ClayCore = (function () {
     return out.concat(moves.slice(end));
   }
 
+  // Adaptive layers: measure how fast the wall moves sideways (mm per mm of height) every 0.5 mm,
+  // then make each wall layer thin enough that it steps out no more than AdaptStep mm,
+  // between AdaptMin and LayerH thick, changing by at most 0.15 mm from one layer to the next.
+  function adaptive_layers(slicer, zmin, scale, s, Htot) {
+    var LayerH = s.LayerH, hmin = Math.min(LayerH, s.AdaptMin), target = s.AdaptStep, dz = 0.5, gs = [], prev = null, z;
+    var base = s.BaseLayers * LayerH;
+    for (z = base; z <= Htot - 0.05; z += dz) {
+      var loops = (slicer(zmin + Math.min(z, Htot - 0.05) / scale) || []).filter(function (l) { return l.length >= 3; });
+      if (!loops.length) { gs.push(0); prev = null; continue; }
+      loops.sort(function (a, b) { return Math.abs(signed_area(b)) - Math.abs(signed_area(a)); });
+      var lp = resample_closed(make_ccw(loops[0].map(function (p) { return [p[0] * scale, p[1] * scale]; })), Math.max(1.5, s.Spacing));
+      var g = 0;
+      if (prev) {
+        var idx = new LoopIndex(prev), st = Math.max(1, Math.floor(lp.length / 120));
+        for (var k = 0; k < lp.length; k += st) g = Math.max(g, idx.nearest(lp[k])[0] / dz);
+      }
+      gs.push(g); prev = lp;
+    }
+    if (gs.length > 1) gs[0] = gs[1];
+    var gAt = function (za, zb) {           // steepest rate between two heights
+      var a = Math.max(0, Math.floor((za - base) / dz)), b = Math.min(gs.length - 1, Math.ceil((zb - base) / dz)), m = 0;
+      for (var q = a; q <= b; q++) m = Math.max(m, gs[q] || 0);
+      return m;
+    };
+    var zt = [], hs = [], i, hprev = LayerH, thin = 0, hlo = LayerH;
+    for (i = 0; i < s.BaseLayers; i++) { zt.push((i + 1) * LayerH); hs.push(LayerH); }
+    z = base;
+    while (z + hmin <= Htot + 1e-6) {
+      var g2 = gAt(z, z + LayerH), h = g2 > 1e-6 ? target / g2 : LayerH;
+      h = Math.max(hmin, Math.min(LayerH, h, hprev + 0.15));
+      if (h < hprev - 0.15) h = Math.max(hmin, hprev - 0.15);
+      if (z + h > Htot + 1e-6) break;
+      z += h; zt.push(z); hs.push(h); hprev = h;
+      if (h < LayerH - 1e-6) { thin++; hlo = Math.min(hlo, h); }
+    }
+    if (zt.length <= s.BaseLayers) return null;
+    return { zt: zt, hs: hs, thin: thin,
+      note: 'Adaptive layers: ' + thin + ' layer(s) thinned to as little as ' + fixed(hlo, 2) + ' mm where the wall flares' };
+  }
+
+  // Priming loop (skirt): one or more laps around the piece's first layer, SkirtGap mm clear of it,
+  // printed before the piece so clay is flowing evenly and air is cleared before the base starts.
+  function priming_loop(base, s) {
+    var hull = (function (pts) {
+      var p = pts.slice().sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+      function cr(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+      var lo = [], up = [], i;
+      for (i = 0; i < p.length; i++) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p[i]) <= 0) lo.pop(); lo.push(p[i]); }
+      for (i = p.length - 1; i >= 0; i--) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p[i]) <= 0) up.pop(); up.push(p[i]); }
+      return lo.slice(0, -1).concat(up.slice(0, -1));
+    })(base);
+    var ring = resample_closed(make_ccw(hull), 1.0), n = ring.length, z = s.LayerH, out = [], laps = [];
+    for (var L = 0; L < s.SkirtLaps; L++) {
+      var off = s.SkirtGap + s.LineW * (L + 1), lap = [];
+      for (var i = 0; i < n; i++) {
+        var a = ring[(i - 1 + n) % n], b = ring[(i + 1) % n], tx = b[0] - a[0], ty = b[1] - a[1], l = hyp(tx, ty) || 1;
+        lap.push([ring[i][0] + ty / l * off, ring[i][1] - tx / l * off]);
+      }
+      var bad = lap.some(function (p) { return p[0] < 1 || p[1] < 1 || p[0] > s.BedX - 1 || p[1] > s.BedY - 1; });
+      if (bad) break;
+      laps.push(rotate_to_seam(lap, base[0]));
+    }
+    if (!laps.length) return { ok: false, reason: 'the piece is too close to the edge of the plate for it' };
+    out.push(['note', 'TYPE:PRIMING LOOP']);
+    laps.slice().reverse().forEach(function (lap, k) {      // outer lap first, then step in
+      if (k === 0) out.push(['travel', lap[0][0], lap[0][1], z]); else out.push(['print', lap[0][0], lap[0][1], z]);
+      lap.slice(1).concat([lap[0]]).forEach(function (p) { out.push(['print', p[0], p[1], z]); });
+    });
+    out.push(['note', 'TYPE:PIECE']);
+    return { ok: true, moves: out, laps: laps.length };
+  }
+
   function settings(kw) {
     var s = {}, k;
     for (k in DEFAULTS) s[k] = DEFAULTS[k];
     if (kw) for (k in kw) if (kw[k] !== null && kw[k] !== undefined) s[k] = kw[k];
-    ['LayerH', 'LineW', 'Flow', 'FilDia', 'Speed', 'Spacing', 'BedX', 'BedY', 'BedZ', 'MaxStep', 'Height']
+    ['LayerH', 'LineW', 'Flow', 'FilDia', 'Speed', 'Spacing', 'BedX', 'BedY', 'BedZ', 'MaxStep', 'Height', 'AdaptMin', 'AdaptStep', 'SkirtGap', 'FirstSpeed']
       .forEach(function (k2) { s[k2] = Number(s[k2]); });
     s.Mix = (s.Mix === null || s.Mix === undefined) ? null : Number(s.Mix);
     s.BaseLayers = Math.trunc(Number(s.BaseLayers));
+    s.SkirtLaps = Math.max(0, Math.trunc(Number(s.SkirtLaps)));
     s.WallLoops = Math.max(1, Math.trunc(Number(s.WallLoops)));
-    ['ZigZag', 'Spiral', 'Center', 'AutoFix'].forEach(function (k2) { s[k2] = !!s[k2]; });
+    ['ZigZag', 'Spiral', 'Center', 'AutoFix', 'Adaptive'].forEach(function (k2) { s[k2] = !!s[k2]; });
     return s;
   }
 
@@ -1917,9 +2044,14 @@ var ClayCore = (function () {
       if (sl.error) return fail(sl.error);
       nlay = Math.min(nlay, s.BaseLayers);
     }
+    // layer tops (print mm) and thicknesses. The safety check always uses even LayerH layers, so
+    // switching adaptive layers on never changes what passes; adaptive only changes what is printed.
+    var zt = [], hs = [], adapt_note = null, Htot = model_h * scale, ad = null;
+    for (i = 0; i < nlay; i++) { zt.push((i + 1) * LayerH); hs.push(LayerH); }
+    if (s.Adaptive && !sl && nlay > s.BaseLayers + 1) ad = adaptive_layers(slicer, zmin, scale, s, Htot);
     var raw = [], multi = 0;
     for (i = 0; i < nlay; i++) {
-      var zc = zmin + (i + 0.5) * LayerH / scale;
+      var zc = zmin + (zt[i] - hs[i] * 0.5) / scale;
       var loops = (slicer(zc) || []).filter(function (l) { return l.length >= 3; });
       if (!loops.length) { warn.push('Layer ' + (i + 1) + ': nothing to slice, stopped here.'); break; }
       loops.sort(function (a, b) { return Math.abs(signed_area(b)) - Math.abs(signed_area(a)); });
@@ -1944,6 +2076,19 @@ var ClayCore = (function () {
         if (d > limit + 1e-6) over_pts.push([i, lp[k]]);
       }
     }
+    var overhangsZ = zt.slice();
+    if (ad && ad.thin) {                          // re-slice at the adaptive heights for the print itself
+      var raw2 = [];
+      for (i = 0; i < ad.zt.length; i++) {
+        var lps = (slicer(zmin + (ad.zt[i] - ad.hs[i] * 0.5) / scale) || []).filter(function (l) { return l.length >= 3; });
+        if (!lps.length) break;
+        lps.sort(function (a, b) { return Math.abs(signed_area(b)) - Math.abs(signed_area(a)); });
+        raw2.push(resample_closed(make_ccw(lps[0].map(function (p) { return [p[0] * scale, p[1] * scale]; })), s.Spacing));
+      }
+      if (raw2.length > s.BaseLayers) {
+        raw = raw2; zt = ad.zt.slice(0, raw2.length); hs = ad.hs.slice(0, raw2.length); adapt_note = ad.note;
+      }
+    }
     if (sl) {
       var prev = raw.length ? raw[raw.length - 1].map(function (p) { return [p[0], p[1]]; }) : null;
       sl.loops.forEach(function (lay, kk) {
@@ -1963,7 +2108,7 @@ var ClayCore = (function () {
     if (sl) sl.loops.forEach(function (l) { l.forEach(function (p) { allx.push(p[0]); ally.push(p[1]); }); });
     var mx = minmax(allx), my = minmax(ally);
     var dx = s.Center ? s.BedX * 0.5 - (mx[0] + mx[1]) * 0.5 : 0, dy = s.Center ? s.BedY * 0.5 - (my[0] + my[1]) * 0.5 : 0;
-    var overhangs = over_pts.map(function (ip) { return [ip[1][0] + dx, ip[1][1] + dy, (ip[0] + 1) * LayerH]; })
+    var overhangs = over_pts.map(function (ip) { return [ip[1][0] + dx, ip[1][1] + dy, overhangsZ[ip[0]]]; })
       .concat(over_np.map(function (p) { return [p[0] + dx, p[1] + dy, p[2]]; }));
     var layers = [], ref = null;
     raw.forEach(function (l) {
@@ -1982,8 +2127,10 @@ var ClayCore = (function () {
     });
     if (not_star) warn.push('Base outline is not a simple round-ish shape; used zig-zag fill there.');
     if (s.Spiral && s.WallLoops > 1) warn.push('Wall loops > 1 only applies when Spiral is off.');
-    var moves = build_toolpath(layers, s, base_inner, wall_inner), initials = null;
-    if (sl) build_sloped_moves(moves, sl, s, layers.length, dx, dy);
+    var flow = opts.flow || null;
+    var ztop_print = sl ? sl.rim[1] : (layers.length ? zt[layers.length - 1] : 0);
+    var moves = build_toolpath(layers, s, base_inner, wall_inner, zt, hs, flow, ztop_print), initials = null;
+    if (sl) build_sloped_moves(moves, sl, s, layers.length, dx, dy, flow);
     var max_initials = 0;
     if (layers.length) for (var ni = 3; ni >= 1; ni--) {
       var tl = layout_initials(layers[0], 'MWM'.slice(0, ni), s.LineW);
@@ -1994,11 +2141,24 @@ var ClayCore = (function () {
       if (initials && initials.error) { warn.push(initials.error); initials = null; }
       else if (initials) moves = cut_initials(moves, initials);
     }
+    var skirt_note = null;
+    if (s.SkirtLaps > 0 && layers.length) {
+      var sk = priming_loop(layers[0], s);
+      if (sk.ok) {
+        var at = moves.findIndex(function (m) { return m[0] === 'layer' && m[1] === 0; }) + 1;
+        moves.splice.apply(moves, [at, 0].concat(sk.moves));
+        skirt_note = 'Priming loop: ' + sk.laps + ' lap(s) ' + fmt(s.SkirtGap) + ' mm out from the piece - peel it away after printing';
+      } else skirt_note = 'Priming loop skipped: ' + sk.reason;
+    }
     var start_lines = set_mix(opts.start || EAZAO_START, s.Mix), end_lines = opts.end || EAZAO_END;
     var xs = [], ys = [];
-    moves.forEach(function (m) { if (m[0] !== 'layer') { xs.push(m[1]); ys.push(m[2]); } });
+    var inSkirt = false;          // the piece's own size, not counting the priming loop
+    moves.forEach(function (m) {
+      if (m[0] === 'note') { inSkirt = m[1] === 'TYPE:PRIMING LOOP'; return; }
+      if (!inSkirt && (m[0] === 'print' || m[0] === 'travel')) { xs.push(m[1]); ys.push(m[2]); }
+    });
     var bx = minmax(xs), by = minmax(ys), w = bx[1] - bx[0], dd2 = by[1] - by[0];
-    var zmax_print = sl ? sl.rim[1] : layers.length * LayerH;
+    var zmax_print = sl ? sl.rim[1] : (layers.length ? zt[layers.length - 1] : 0);
     var header = (opts.note ? [opts.note] : []).concat(['source: ' + (opts.source || 'model'),
       'size: ' + fixed(w, 1) + ' x ' + fixed(dd2, 1) + ' x ' + fixed(zmax_print, 1) + ' mm (scale ' + fixed(scale * 100, 1) + '%)']);
     var gr = moves_to_gcode(moves, start_lines, end_lines, s, header), plen = gr[1], tlen = gr[2];
@@ -2022,7 +2182,7 @@ var ClayCore = (function () {
     }
     if (multi) warn.push(multi + ' layer(s) had more than one separate piece; only the largest is printed.');
     if (s.Speed < 10 || s.Speed > 40) warn.push('Speed ' + gfmt(s.Speed) + " mm/s is outside the Potter's 10-40 mm/s range.");
-    var t_min = (plen / s.Speed + tlen / 25.0) / 60.0;
+    var t_min = (gr[4] + tlen / 25.0) / 60.0;
     var info = ['Size: ' + fixed(w, 1) + ' x ' + fixed(dd2, 1) + ' x ' + fixed(zmax_print, 1) + ' mm (W x D x H)'];
     if (Math.abs(scale - 1) > 1e-6) info.push('Scaled to ' + fixed(scale * 100, 1) + '% of the model (all proportions kept)');
     info.push('Layers: ' + (layers.length + (sl ? sl.n : 0)) + ' (' + Math.min(s.BaseLayers, layers.length) + ' solid ' +
@@ -2040,6 +2200,9 @@ var ClayCore = (function () {
       fixed(Math.atan2(max_step, LayerH) * 180 / Math.PI, 0) + ' deg) | limit ' + fixed(limit, 1) + ' mm (~' +
       fixed(Math.atan2(limit, LayerH) * 180 / Math.PI, 0) + ' deg at ' + fmt(LayerH) + ' mm layers)');
     if (fix_note) info.push(fix_note);
+    if (adapt_note) info.push(adapt_note);
+    if (skirt_note) info.push(skirt_note);
+    if (s.FirstSpeed && s.FirstSpeed > 0 && Math.abs(s.FirstSpeed - s.Speed) > 1e-9) info.push('First layer printed at ' + fmt(s.FirstSpeed) + ' mm/s so the base settles evenly');
     if (initials) info.push('Initials: ' + initials.text + ', ' + fixed(initials.height, 0) + ' mm tall, pressed ' + fmt(LayerH) +
       ' mm into the bottom layer (read them with the piece tipped forward onto its rim)');
     info.push('Bed position: X ' + fixed(bx[0], 1) + '..' + fixed(bx[1], 1) + '  Y ' + fixed(by[0], 1) + '..' + fixed(by[1], 1));
@@ -2047,13 +2210,14 @@ var ClayCore = (function () {
     if (warn.length) { info.push('WARNINGS:'); warn.forEach(function (x) { info.push('- ' + x); }); }
     else info.push('Checks: OK');
     return { gcode: gr[0], moves: moves, info: info.join('\n'), ok: true, warnings: warn, size: [w, dd2, zmax_print],
-      scale: scale, overhangs: overhangs, minutes: t_min, clay_m: plen / 1000, initials: initials, max_initials: max_initials };
+      scale: scale, overhangs: overhangs, minutes: t_min, clay_m: plen / 1000, initials: initials, max_initials: max_initials,
+      clay_ml: gr[3] * Math.PI * Math.pow(s.FilDia * 0.5, 2) / 1000 };
   }
 
   function preview_paths(moves) {
     var out = [], cur = [];
     moves.forEach(function (mv) {
-      if (mv[0] === 'layer') return;
+      if (mv[0] === 'layer' || mv[0] === 'note') return;
       if (mv[0] === 'travel') { if (cur.length > 1) out.push(cur); cur = [[mv[1], mv[2], mv[3]]]; }
       else cur.push([mv[1], mv[2], mv[3]]);
     });
@@ -2388,7 +2552,7 @@ var ClayShapes = (function () {
   var TEACHER = false;
   var STUDENT_STEP = 35;   // % of the line: the steepest per-layer lean students may print
   var CLAY_DEFAULTS = { shrink: 12, LayerH: 1, LineW: 3, Speed: 25, Mix: 0.85, BaseLayers: 3, MaxStep: TEACHER ? 45 : STUDENT_STEP,
-    Spiral: true, fdm: 'WALLED', wall: 1.6, floor: 2, view: 'SHAPE', initials: '' };
+    Spiral: true, fdm: 'WALLED', wall: 1.6, floor: 2, view: 'SHAPE', initials: '', adaptive: true, SkirtLaps: 2, FirstSpeed: 15 };
   var presetKey = 'ESPRESSO';
   var ALL_PATTERNS = ['NONE', 'RIBS', 'SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS', 'SCALLOPS'];
   // what students can change for each starting shape (ranges in finished mm)
@@ -2399,11 +2563,12 @@ var ClayShapes = (function () {
     ESPRESSO: { width: [55, 75], height: [45, 70], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20] },
     CAPPUCCINO: { width: [85, 115], height: [55, 80], aspect: 0.6, patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20], pitch_d: 20 },
     TUMBLER: { width: [65, 85], height: [80, 110], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20] },
-    BOWL: { width: [85, 125], height: [30, 50], aspect: 0.4, patterns: CUP_TEX, rims: ['FLAT'], depth: [0.5, 1.0], fade_bottom: [10, 20], pitch_d: 22 },
+    BOWL: { width: [85, 125], height: [30, 50], aspect: 0.4, patterns: CUP_TEX, rims: ['FLAT', 'WAVE'], depth: [0.5, 1.0], fade_bottom: [10, 20], pitch_d: 22,
+      wave_n: [2, 6], wave_d: [4, 10] },
     POURING: { width: [55, 65], height: [42, 55], length: [50, 65], tip_width: [15, 22], patterns: ['NONE', 'RIBS', 'DIAMONDS', 'BUBBLES'],
       rims: ['SLOPED'], tilt: [8, 12], drop: [2, 4], depth: [0.5, 1.0], pitch_d: 22 },
     TEALIGHT: { width: [65, 90], height: [35, 55], aspect: 0.45, lobes: [5, 9], lobe_depth: [0.05, 0.16], twist: [-45, 45],
-      patterns: ['NONE', 'RIBS', 'SPIRAL'], rims: ['FLAT'] },
+      patterns: ['NONE', 'RIBS', 'SPIRAL'], rims: ['FLAT', 'WAVE'], wave_n: [3, 9], wave_d: [4, 12] },
     VASE: { width: [70, 110], height: [100, 200], aspect: 1.35, lobes: [5, 9], lobe_depth: [0.1, 0.22], twist: [-90, 90],
       patterns: CUP_TEX, rims: ['FLAT', 'WAVE'], depth: [0.5, 1.0], pitch_d: 22, wave_n: [2, 6], wave_d: [6, 20] },
     TULIP: { width: [70, 100], height: [100, 160], aspect: 1.3, lobes: [8, 12], lobe_depth: [0.06, 0.15], twist: [-90, 90],
@@ -2411,7 +2576,7 @@ var ClayShapes = (function () {
     ORNAMENT: { width: [60, 75], height: [62, 85], aspect: 1.05, lobes: [6, 10], lobe_depth: [0.06, 0.15], twist: [-60, 60],
       patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [5, 10], depth: [0.5, 0.8] }
   };
-  var STUDENT_COMMON = { depth: [0.5, 1.2], fade_bottom: [8, 20], fade_top: [0, 20], LayerH: [1, 1] };
+  var STUDENT_COMMON = { depth: [0.5, 1.2], fade_bottom: [8, 20], fade_top: [0, 20], LayerH: [1, 1], bead_amt: [10, 30] };
   var origRange = {};
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -2419,7 +2584,7 @@ var ClayShapes = (function () {
     presetKey = key;
     var p = clone(S.PRESETS[key]), keep = {};
     Object.keys(CLAY_DEFAULTS).forEach(function (k) { keep[k] = (k in state) ? state[k] : CLAY_DEFAULTS[k]; });
-    state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12 }, p, keep);
+    state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16 }, p, keep);
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === key); });
     applyLimits(); syncAll(); changed(true);
   }
@@ -2468,6 +2633,11 @@ var ClayShapes = (function () {
       if (code !== null) document.getElementById('advNote').textContent = 'That code didn\u2019t match, so advanced settings stay off.';
     }
   });
+  // Which bead textures go with which surface pattern (from the side-by-side renders)
+  function beadsAllowed() {
+    if (TEACHER) return ['STEADY', 'PEARLS', 'KNIT', 'DIAGONAL'];
+    return { DIAMONDS: ['STEADY'], BUBBLES: ['STEADY'], SPIRAL: ['STEADY', 'PEARLS', 'DIAGONAL'] }[state.pattern] || ['STEADY', 'PEARLS', 'KNIT', 'DIAGONAL'];
+  }
   function patternMin() {
     var L = LIMITS[presetKey] || {};
     return state.pattern === 'SPIRAL' ? 40 : ((state.pattern === 'DIAMONDS' || state.pattern === 'BUBBLES') ? (TEACHER ? 15 : (L.pitch_d || 18)) : 10);
@@ -2501,7 +2671,8 @@ var ClayShapes = (function () {
       b.addEventListener('click', function () { state[key] = b.dataset.v; syncAll(); changed(); });
     });
   }
-  segBind('outline', 'outline'); segBind('rim', 'rim'); segBind('fdm', 'fdm'); segBind('viewmode', 'view');
+  segBind('outline', 'outline'); segBind('rim', 'rim'); segBind('fdm', 'fdm'); segBind('viewmode', 'view'); segBind('bead', 'bead');
+  document.getElementById('adaptive').addEventListener('change', function (e) { state.adaptive = e.target.checked; changed(); });
   document.getElementById('pattern').addEventListener('change', function (e) { state.pattern = e.target.value; applyLimits(); syncAll(); changed(); });
   document.getElementById('initials').addEventListener('input', function (e) {
     var v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
@@ -2647,16 +2818,24 @@ var ClayShapes = (function () {
     function vis(sel, on) { document.querySelectorAll(sel).forEach(function (e) { e.style.display = on ? '' : 'none'; }); }
     vis('.only-star', state.outline === 'STAR'); vis('.only-spout', state.outline === 'TEARDROP');
     vis('.only-tex', state.pattern !== 'NONE'); vis('.only-rep', state.pattern !== 'BANDS');
+    var beadOK = beadsAllowed();
+    document.querySelectorAll('#bead button').forEach(function (b) { b.disabled = beadOK.indexOf(b.dataset.v) < 0; });
+    if (beadOK.indexOf(state.bead) < 0) { state.bead = 'STEADY'; document.querySelectorAll('#bead button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === 'STEADY'); }); }
+    document.getElementById('beadNote').textContent = beadOK.length === 1
+      ? 'Bead textures are off with ' + ({ DIAMONDS: 'diamonds', BUBBLES: 'bubbles' }[state.pattern] || 'this pattern') + ': the pattern already fills the wall and the two just muddy each other.' : '';
+    vis('.only-bead', state.bead && state.bead !== 'STEADY');
+    vis('.only-fade', state.pattern !== 'NONE' || (state.bead && state.bead !== 'STEADY'));
     vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS'].indexOf(state.pattern) >= 0);
     vis('.only-sloped', state.rim === 'SLOPED'); vis('.only-tabs', state.rim === 'TABS'); vis('.only-wave', state.rim === 'WAVE'); vis('.only-walled', state.fdm === 'WALLED');
   }
   function syncAll() {
     Object.keys(numEls).forEach(function (k) { if (state[k] !== undefined) { numEls[k][0].value = state[k]; numEls[k][1].value = state[k]; } });
-    [['outline', 'outline'], ['rim', 'rim'], ['fdm', 'fdm'], ['viewmode', 'view']].forEach(function (p) {
+    [['outline', 'outline'], ['rim', 'rim'], ['fdm', 'fdm'], ['viewmode', 'view'], ['bead', 'bead']].forEach(function (p) {
       document.querySelectorAll('#' + p[0] + ' button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === state[p[1]]); });
     });
     document.getElementById('pattern').value = state.pattern;
     document.getElementById('Spiral').checked = !!state.Spiral;
+    document.getElementById('adaptive').checked = state.adaptive !== false;
     document.getElementById('initials').value = state.initials || '';
     drawProfile();
   }
@@ -2734,21 +2913,33 @@ var ClayShapes = (function () {
     if (pathLines) { scene.remove(pathLines); pathLines.geometry.dispose(); pathLines = null; }
     if (overPts) { scene.remove(overPts); overPts.geometry.dispose(); overPts = null; }
     if (!res || !res.ok) return;
-    var runs = C.preview_paths(res.moves), seg = [], col = [], zmax = res.size[2] || 1;
+    var seg = [], col = [], zmax = res.size[2] || 1, layer = 0, tsec = 0, cur = null, spd = state.Speed || 25;
     var lo = new THREE.Color(cssColor('--piece')), hi = new THREE.Color(cssColor('--glaze')), c = new THREE.Color();
-    runs.forEach(function (run) {
-      for (var i = 1; i < run.length; i++) {
-        [run[i - 1], run[i]].forEach(function (p) {
-          var t = toThree(p[0] - 83.5, p[1] - 83.5, p[2]); seg.push(t[0], t[1], t[2]);
-          c.copy(lo).lerp(hi, Math.min(1, p[2] / zmax)); col.push(c.r, c.g, c.b);
-        });
+    anim.times = []; anim.layers = []; anim.ends = []; anim.nLayers = 0;
+    res.moves.forEach(function (m) {
+      if (m[0] === 'note') return;
+      if (m[0] === 'layer') { layer = m[1]; anim.nLayers = Math.max(anim.nLayers, layer + 1); return; }
+      var p = [m[1], m[2], m[3]];
+      if (cur) {
+        var d = Math.sqrt(Math.pow(p[0] - cur[0], 2) + Math.pow(p[1] - cur[1], 2) + Math.pow(p[2] - cur[2], 2));
+        tsec += d / (m[0] === 'print' ? spd : 25);
+        if (m[0] === 'print' && d > 1e-6) {
+          [cur, p].forEach(function (q) {
+            var t = toThree(q[0] - 83.5, q[1] - 83.5, q[2]); seg.push(t[0], t[1], t[2]);
+            c.copy(lo).lerp(hi, Math.min(1, q[2] / zmax)); col.push(c.r, c.g, c.b);
+          });
+          anim.times.push(tsec); anim.layers.push(layer); anim.ends.push(toThree(p[0] - 83.5, p[1] - 83.5, p[2]));
+        }
       }
+      cur = p;
     });
+    anim.total = tsec;
     var g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     pathLines = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true }));
     scene.add(pathLines);
+    stopAnim(); showProgress(1);
     if (res.overhangs && res.overhangs.length) {
       var op = []; res.overhangs.forEach(function (p) { var t = toThree(p[0] - 83.5, p[1] - 83.5, p[2]); op.push(t[0], t[1], t[2]); });
       var og = new THREE.BufferGeometry(); og.setAttribute('position', new THREE.Float32BufferAttribute(op, 3));
@@ -2756,12 +2947,59 @@ var ClayShapes = (function () {
       scene.add(overPts);
     }
   }
+  // ---------- watch it print ----------
+  var anim = { times: [], layers: [], ends: [], total: 0, nLayers: 0, playing: false, frac: 1, last: 0, seconds: 20 };
+  var nozzle = new THREE.Mesh(new THREE.ConeGeometry(2.2, 7, 16), new THREE.MeshStandardMaterial({ color: 0x8a8f94, metalness: 0.4, roughness: 0.4 }));
+  nozzle.rotation.x = Math.PI; nozzle.visible = false; scene.add(nozzle);
+  function fmtMin(sec) { var m = Math.floor(sec / 60), s = Math.round(sec % 60); if (s === 60) { m++; s = 0; } return m + ':' + (s < 10 ? '0' : '') + s; }
+  function showProgress(frac) {
+    anim.frac = Math.max(0, Math.min(1, frac));
+    var n = anim.times.length, info = document.getElementById('playInfo'), scrub = document.getElementById('scrub');
+    scrub.value = Math.round(anim.frac * 1000);
+    if (!pathLines || !n) { info.textContent = ''; nozzle.visible = false; render(); return; }
+    var tNow = anim.frac * anim.total, lo = 0, hi = n;          // first segment finishing after tNow
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (anim.times[mid] <= tNow) lo = mid + 1; else hi = mid; }
+    var shown = anim.frac >= 1 ? n : lo;
+    pathLines.geometry.setDrawRange(0, shown * 2);
+    var last = anim.ends[Math.max(0, Math.min(n - 1, shown - 1))];
+    nozzle.position.set(last[0], last[1] + 3.5, last[2]);
+    nozzle.visible = anim.frac < 1 && pathLines.visible;
+    info.textContent = anim.frac >= 1 ? 'Finished: ' + fmtMin(anim.total) :
+      'Layer ' + (anim.layers[Math.max(0, shown - 1)] + 1) + ' of ' + anim.nLayers + ' \u00b7 ' + fmtMin(tNow) + ' of ' + fmtMin(anim.total);
+    render();
+  }
+  function stopAnim() {
+    anim.playing = false;
+    document.getElementById('playBtn').textContent = '\u25b6 Watch it print';
+  }
+  function tick(ts) {
+    if (!anim.playing) return;
+    var dt = anim.last ? (ts - anim.last) / 1000 : 0; anim.last = ts;
+    var f = anim.frac + dt / anim.seconds;
+    if (f >= 1) { showProgress(1); stopAnim(); return; }
+    showProgress(f); requestAnimationFrame(tick);
+  }
+  document.getElementById('playBtn').addEventListener('click', function () {
+    if (anim.playing) { stopAnim(); showProgress(anim.frac); return; }
+    if (state.view !== 'PATH' && state.view !== 'BOTH') { state.view = 'PATH'; syncAll(); applyView(); }
+    if (anim.frac >= 1) anim.frac = 0;
+    anim.playing = true; anim.last = 0;
+    document.getElementById('playBtn').textContent = '\u275a\u275a Pause';
+    requestAnimationFrame(tick);
+  });
+  document.getElementById('scrub').addEventListener('input', function (e) {
+    stopAnim();
+    if (state.view !== 'PATH' && state.view !== 'BOTH') { state.view = 'PATH'; syncAll(); applyView(); }
+    showProgress(Number(e.target.value) / 1000);
+  });
+
   function applyView() {
     var v = state.view || 'SHAPE';
     if (pieceMesh) pieceMesh.visible = v === 'SHAPE' || v === 'BOTH';
     if (wireLines) wireLines.visible = v === 'WIRE';
     if (pathLines) pathLines.visible = v === 'PATH' || v === 'BOTH';
     if (overPts) overPts.visible = true;
+    nozzle.visible = !!pathLines && pathLines.visible && anim.frac < 1;
     render();
   }
 
@@ -2775,9 +3013,26 @@ var ClayShapes = (function () {
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.BaseLayers,
-      MaxStep: state.MaxStep, Spiral: state.Spiral });
+      MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false,
+      SkirtLaps: state.SkirtLaps, SkirtGap: 5, FirstSpeed: state.FirstSpeed });
   }
   var lastRes = null, lastKey = '', tPrev = 0, tSlice = 0;
+  function smooth01(t) { t = t < 0 ? 0 : (t > 1 ? 1 : t); return t * t * (3 - 2 * t); }
+  // clay-flow multiplier for the bead texture: sFrac = 0-1 around the wall, z and toRim in printed mm
+  function beadFn() {
+    if (!state.bead || state.bead === 'STEADY') return null;
+    var A = (state.bead_amt || 0) / 100, R = Math.max(1, Math.round(state.bead_n || 16)), K = k();
+    var ft = (state.fade_top || 0) * K, fb = (state.fade_bottom || 0) * K, mode = state.bead, LH = state.LayerH || 1;
+    return function (sf, z, layer, toRim) {
+      var ph = R * sf;
+      if (mode === 'KNIT') ph += (layer % 2) * 0.5;
+      if (mode === 'DIAGONAL') ph += layer / 12;
+      var m = 1;
+      if (ft > 0) m *= smooth01(toRim / ft);
+      if (fb > 0) m *= smooth01(z / fb);
+      return 1 + A * m * Math.sin(2 * Math.PI * ph);
+    };
+  }
   // ---------- undo / redo / resets ----------
   var history = [], future = [], restoring = false, histTimer = 0;
   function snap() { var o = JSON.parse(JSON.stringify(state)); delete o.view; return JSON.stringify({ p: presetKey, s: o }); }
@@ -2830,13 +3085,15 @@ var ClayShapes = (function () {
     size: ['outline', 'width', 'height', 'lobes', 'lobe_depth', 'length', 'tip_width', 'twist'],
     profile: ['profile'],
     pattern: ['pattern', 'depth', 'repeats', 'pitch', 'fade_top', 'fade_bottom'],
-    rim: ['rim', 'tilt', 'drop', 'tab_h', 'wave_n', 'wave_d']
+    rim: ['rim', 'tilt', 'drop', 'tab_h', 'wave_n', 'wave_d'],
+    bead: ['bead', 'bead_amt', 'bead_n']
   };
   document.querySelectorAll('[data-reset]').forEach(function (b) {
     b.addEventListener('click', function () {
       var which = b.dataset.reset, p = clone(S.PRESETS[presetKey]);
+      var beadDefaults = { bead: 'STEADY', bead_amt: 25, bead_n: 16 };
       if (which === 'initials') state.initials = '';
-      else RESET_KEYS[which].forEach(function (k) { if (p[k] !== undefined) state[k] = p[k]; });
+      else RESET_KEYS[which].forEach(function (k) { if (p[k] !== undefined) state[k] = p[k]; else if (beadDefaults[k] !== undefined) state[k] = beadDefaults[k]; });
       selDot = -1; applyLimits(); syncAll(); changed(); updDotBtn();
     });
   });
@@ -2867,7 +3124,17 @@ var ClayShapes = (function () {
         setRange('repeats', 4, maxR);
         if (numEls.repeats[0].value != state.repeats) { numEls.repeats[0].value = state.repeats; numEls.repeats[1].value = state.repeats; sh = new S.Shape(spec(), 240); }
       }
-      var skin = sh.skin_mesh(1.0, K); skin.n = sh.n;
+      var bf = beadFn(), skin = sh.skin_mesh(bf ? (state.LayerH || 1) / K : 1.0, K); skin.n = sh.n;
+      if (bf) {      // show the bead texture in the preview: push each ring out or in by the swell
+        var Ht = sh.H * K, n = sh.n;
+        for (var vi = 0; vi < skin.verts.length - 1; vi++) {
+          var vx = skin.verts[vi], ring = Math.floor(vi / n), iz = vi % n, zz2 = vx[2];
+          if (zz2 < state.BaseLayers * state.LayerH) continue;
+          var layer = Math.floor(zz2 / (state.LayerH || 1)), fct = bf(iz / n, zz2, layer, Ht - zz2), r = Math.hypot(vx[0], vx[1]) || 1;
+          var dd = 1.5 * (fct - 1);
+          skin.verts[vi] = [vx[0] + vx[0] / r * dd, vx[1] + vx[1] / r * dd, zz2];
+        }
+      }
       setPiece(skin);
       if (dragging < 0) drawSilhouette();
       var f = function (v) { return Math.round(v); };
@@ -2877,10 +3144,10 @@ var ClayShapes = (function () {
     } catch (e) { setStatus({ ok: false, info: e.message }); }
   }
   function slice() {
-    var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials]);
+    var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n]);
     try {
       var sh = new S.Shape(spec(), 400), K = k();
-      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials,
+      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(),
         note: 'FOR THE EAZAO POTTER X-1 CLAY PRINTER ONLY - do not run this file on any other printer',
         source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') });
       lastKey = key;
@@ -2891,9 +3158,11 @@ var ClayShapes = (function () {
     } catch (e) { lastRes = null; setStatus({ ok: false, info: e.message }); }
   }
   function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+  var BARREL_ML = 400;     // a 500 ml barrel filled about 80%
+  function overBarrel(res) { return !!res && res.ok && (res.clay_ml || 0) > BARREL_ML; }
   function blocked(res) {
     if (TEACHER || !res || !res.ok) return false;
-    return (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest)/.test(w); });
+    return overBarrel(res) || (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest)/.test(w); });
   }
   function drawBottom(res) {
     var cv = document.getElementById('bottom'), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -2901,9 +3170,11 @@ var ClayShapes = (function () {
     var g = cv.getContext && cv.getContext('2d'); if (!g) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, W);
     if (!res || !res.ok) return;
-    var segs = [], x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, cx = null, cy = null, started = false;
+    var segs = [], x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, cx = null, cy = null, started = false, skirt = false;
     for (var i = 0; i < res.moves.length; i++) {
       var m = res.moves[i];
+      if (m[0] === 'note') { skirt = m[1] === 'TYPE:PRIMING LOOP'; cx = null; continue; }
+      if (skirt) continue;
       if (m[0] === 'layer') { if (m[1] === 0) { started = true; continue; } if (started) break; continue; }
       if (!started) continue;
       if (m[0] === 'print' && cx !== null) segs.push([cx, cy, m[1], m[2]]);
@@ -2925,6 +3196,8 @@ var ClayShapes = (function () {
       return 'The wall leans in or out too quickly about ' + m[1] + ' mm up from the foot (while wet). Like a pot flaring too fast on the wheel, ' +
         'it would slump. Make the side shape change more gradually there, or use less twist or a shallower pattern.';
     if (/^OFF THE BED/.test(w)) return 'Too big for the printer plate. Make it narrower.';
+    if (/^BARREL:/.test(w)) return 'This needs about ' + w.replace(/\D+/g, '') + ' ml of clay, more than one full barrel (about ' + BARREL_ML +
+      ' ml), so the printer would run out partway through. Refilling mid-print isn\u2019t supported yet: make the piece smaller.';
     if (/^TOO TALL/.test(w)) return 'Too tall for the printer. Make it shorter.';
     if (/^Narrow base/.test(w)) return 'The foot is narrow for how tall this is, so it could wobble while printing. Widen the bottom of the side shape.';
     if (/^Base outline is not/.test(w)) return 'The foot is an unusual shape, so it\u2019s filled with straight lines instead of rings. It still prints fine.';
@@ -2936,9 +3209,10 @@ var ClayShapes = (function () {
     var el = document.getElementById('status');
     if (!res) { el.innerHTML = '<div class="headline"><span class="state">' + esc(msg) + '</span></div>'; return; }
     if (!res.ok) { document.getElementById('dlG').disabled = true; el.innerHTML = '<div class="headline"><span class="state warn">Not printable yet</span></div><ul><li>' + esc(res.info) + '</li></ul>'; return; }
-    var w = res.warnings || [], blk = blocked(res);
+    var w = (res.warnings || []).slice(), blk = blocked(res);
+    if (overBarrel(res)) w.unshift('BARREL: needs about ' + Math.round(res.clay_ml) + ' ml of clay');
     document.getElementById('dlG').disabled = blk;
-    var ml = res.clay_m * state.LayerH * state.LineW, perBarrel = Math.floor(400 / Math.max(ml, 1));
+    var ml = res.clay_ml || res.clay_m * state.LayerH * state.LineW, perBarrel = Math.floor(400 / Math.max(ml, 1));
     var head = blk ? 'Needs a change before it can print' : (w.length ? 'Ready to print, with ' + (w.length > 1 ? w.length + ' notes' : 'a note') : 'Ready to print');
     var html = '<div class="headline"><span class="state ' + (blk ? 'warn' : 'ok') + '">' + head + '</span></div>' +
       '<div class="metrics">' +
@@ -2960,7 +3234,7 @@ var ClayShapes = (function () {
   }
   function fileBase() { return (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : 'clay').toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
   document.getElementById('dlG').addEventListener('click', function () {
-    if (JSON.stringify([spec(), clayS(), state.shrink, state.initials]) !== lastKey) { clearTimeout(tSlice); slice(); }
+    if (JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n]) !== lastKey) { clearTimeout(tSlice); slice(); }
     if (!lastRes || !lastRes.ok || blocked(lastRes)) { alert('This shape can’t be printed yet — see the message under the picture.'); return; }
     download(fileBase() + '.gcode', lastRes.gcode.join('\n') + '\n', 'text/plain');
     document.getElementById('saved').textContent = 'Saved ' + fileBase() + '.gcode to your Downloads folder. Next: copy it to the printer\u2019s SD card (see “From file to finished piece”).';
