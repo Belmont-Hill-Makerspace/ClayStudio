@@ -2668,7 +2668,14 @@ var ClayShapes = (function () {
   function segBind(id, key) {
     var el = document.getElementById(id);
     el.querySelectorAll('button').forEach(function (b) {
-      b.addEventListener('click', function () { state[key] = b.dataset.v; syncAll(); changed(); });
+      b.addEventListener('click', function () {
+        state[key] = b.dataset.v;
+        if (key === 'view') {           // changing the view doesn't change the print: just redraw
+          document.querySelectorAll('#viewmode button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === state.view); });
+          applyView(); return;
+        }
+        syncAll(); changed();
+      });
     });
   }
   segBind('outline', 'outline'); segBind('rim', 'rim'); segBind('fdm', 'fdm'); segBind('viewmode', 'view'); segBind('bead', 'bead');
@@ -2843,6 +2850,7 @@ var ClayShapes = (function () {
   // ---------- 3D view ----------
   var view = document.getElementById('view');
   var renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.localClippingEnabled = true;       // lets the piece "grow" with the nozzle in the Both view
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   view.insertBefore(renderer.domElement, view.firstChild);
   var scene = new THREE.Scene();
@@ -2850,11 +2858,20 @@ var ClayShapes = (function () {
   camera.position.set(170, 190, 260);
   var controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 45, 0); controls.update();
-  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8a80, 0.75));
-  var sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(120, 260, 160); scene.add(sun);
-  var fill = new THREE.DirectionalLight(0xffffff, 0.25); fill.position.set(-200, 80, -120); scene.add(fill);
+  // Lighting for reading surface texture: low, soft ambient light plus a raking key light that
+  // follows the camera (from the viewer's upper left), so ribs, diamonds and bead swells cast
+  // clear highlights and shadows from whatever angle you look.
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x5a5650, 0.32));
+  scene.add(camera);
+  var key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(-220, 120, 60); camera.add(key);
+  key.target.position.set(0, 0, -300); camera.add(key.target);
+  var fill = new THREE.DirectionalLight(0xffffff, 0.22); fill.position.set(200, -40, 40); camera.add(fill);
+  fill.target.position.set(0, 0, -300); camera.add(fill.target);
+  var rim = new THREE.DirectionalLight(0xffffff, 0.35); rim.position.set(0, 250, -200); scene.add(rim);
   var bedGroup = new THREE.Group(); scene.add(bedGroup);
-  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
+  var clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e6);
+  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide,
+    clippingPlanes: [clipPlane] });
   var pieceMesh = null, pathLines = null, overPts = null, wireLines = null;
 
   function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -2964,6 +2981,8 @@ var ClayShapes = (function () {
     var last = anim.ends[Math.max(0, Math.min(n - 1, shown - 1))];
     nozzle.position.set(last[0], last[1] + 3.5, last[2]);
     nozzle.visible = anim.frac < 1 && pathLines.visible;
+    // In the Both view, show the piece only up to the nozzle so it builds up with the path
+    clipPlane.constant = (anim.frac < 1 && state.view === 'BOTH') ? last[1] + 0.01 : 1e6;
     info.textContent = anim.frac >= 1 ? 'Finished: ' + fmtMin(anim.total) :
       'Layer ' + (anim.layers[Math.max(0, shown - 1)] + 1) + ' of ' + anim.nLayers + ' \u00b7 ' + fmtMin(tNow) + ' of ' + fmtMin(anim.total);
     render();
@@ -3000,6 +3019,7 @@ var ClayShapes = (function () {
     if (pathLines) pathLines.visible = v === 'PATH' || v === 'BOTH';
     if (overPts) overPts.visible = true;
     nozzle.visible = !!pathLines && pathLines.visible && anim.frac < 1;
+    clipPlane.constant = (anim.frac < 1 && v === 'BOTH' && nozzle.visible) ? nozzle.position.y - 3.5 + 0.01 : 1e6;
     render();
   }
 
@@ -3112,7 +3132,7 @@ var ClayShapes = (function () {
   }
   function preview() {
     try {
-      var sh = new S.Shape(spec(), 240), K = k();
+      var sh = new S.Shape(spec(), 320), K = k();
       if (!TEACHER && state.pattern !== 'NONE') {          // each repeat needs at least 10 mm of wall at the narrowest point
         var per = Infinity;
         for (var zz = 0; zz <= sh.Hb; zz += sh.Hb / 12) {
@@ -3122,7 +3142,7 @@ var ClayShapes = (function () {
         }
         var maxR = Math.max(4, Math.floor(per / 10));
         setRange('repeats', 4, maxR);
-        if (numEls.repeats[0].value != state.repeats) { numEls.repeats[0].value = state.repeats; numEls.repeats[1].value = state.repeats; sh = new S.Shape(spec(), 240); }
+        if (numEls.repeats[0].value != state.repeats) { numEls.repeats[0].value = state.repeats; numEls.repeats[1].value = state.repeats; sh = new S.Shape(spec(), 320); }
       }
       var bf = beadFn(), skin = sh.skin_mesh(bf ? (state.LayerH || 1) / K : 1.0, K); skin.n = sh.n;
       if (bf) {      // show the bead texture in the preview: push each ring out or in by the swell
