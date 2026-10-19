@@ -131,6 +131,22 @@ ol.steps li { margin: 4px 0; }
 body:not(.teacher) .teacher-only { display: none !important; }
 #bottom { width: 100%; max-width: 300px; aspect-ratio: 1; display: block; margin: 6px auto 0; border-radius: 10px; background: var(--soft); }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
+/* pop-up help */
+.rowhead { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.rowhead > label, .rowhead > select { flex: 1; min-width: 0; }
+.tipbtn { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg);
+  color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1; padding: 0; cursor: help; }
+.tipbtn:hover, .tipbtn[aria-expanded="true"] { border-color: var(--glaze); color: var(--glaze); }
+.seg button[aria-disabled="true"] { color: var(--muted); opacity: .45; cursor: help; }
+#tip { position: fixed; z-index: 50; max-width: 290px; padding: 10px 12px; background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 18%, transparent);
+  font-size: 14px; line-height: 1.45; pointer-events: none; }
+#tip[hidden] { display: none; }
+#tip b { display: block; }
+#tip p { margin: 4px 0 0; }
+#tip .why { margin-top: 8px; padding-left: 9px; border-left: 3px solid var(--glaze); }
+@media (prefers-reduced-motion: no-preference) { #tip { animation: tipIn .12s ease-out; } }
+@keyframes tipIn { from { opacity: 0; } }
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto; height: auto; }
   aside { grid-row: 3; border-right: 0; border-top: 1px solid var(--line); }
@@ -167,6 +183,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
         <button id="startOver" title="Put everything back to the starting shape">Start over</button>
       </div>
       <p class="intro">Pick a starting shape at the top, then adjust it below. The picture updates as you go, and the bar under it tells you when the piece is ready to print.</p>
+      <p class="intro">To see what a setting does, hover over it or tap its <b>?</b>. Greyed-out options don’t go with this shape or pattern: hover over or tap one to find out why.</p>
       <details open>
         <summary>Size</summary>
         <div class="seg teacher-only" id="outline" role="group" aria-label="Outline">
@@ -206,11 +223,12 @@ body:not(.teacher) .teacher-only { display: none !important; }
 
       <details>
         <summary>Surface pattern</summary>
-        <select id="pattern" aria-label="Pattern">
+        <div class="rowhead"><select id="pattern" aria-label="Pattern" data-tipkey="pattern">
           <option value="NONE">Smooth</option><option value="RIBS">Vertical ribs</option><option value="SPIRAL">Spiral ribs</option>
           <option value="BANDS">Bands</option><option value="BUBBLES">Bubbles</option><option value="DIAMONDS">Diamonds</option>
           <option value="SCALLOPS">Scalloped flutes</option>
-        </select>
+        </select><button type="button" class="tipbtn" data-tipkey="pattern" aria-label="About the surface patterns" aria-expanded="false">?</button></div>
+        <p class="note" id="patternNote"></p>
         <div class="only-tex">
           <div data-num="depth" data-label="Depth" data-unit="mm" data-hint="how far it stands out" data-min="0.2" data-max="3" data-step="0.1"></div>
           <div class="only-rep" data-num="repeats" data-label="How many around" data-min="2" data-max="60" data-step="1"></div>
@@ -244,6 +262,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
         <div class="seg" id="rim" role="group" aria-label="Rim">
           <button data-v="FLAT">Flat</button><button data-v="WAVE">Wavy</button><button data-v="SLOPED">Sloped</button><button data-v="TABS">Hanger tabs</button>
         </div>
+        <p class="note" id="rimNote"></p>
         <div class="only-sloped">
           <div data-num="tilt" data-label="Slope" data-unit="°" data-min="2" data-max="25" data-step="1"></div>
           <div data-num="drop" data-label="Spout end below full height" data-unit="mm" data-min="1" data-max="20" data-step="0.5"></div>
@@ -316,7 +335,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
       </div>
     </div>
     <div class="actions">
-      <label class="check" title="Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer.">
+      <label class="check" data-tipkey="adaptive">
         <input type="checkbox" id="adaptive"> Adaptive layers <span class="hint">(thinner where the wall flares)</span></label>
       <button class="primary" id="dlG">Save the print file</button>
       <p class="note" id="saved" aria-live="polite"></p>
@@ -342,6 +361,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
     <section class="status" id="status" aria-live="polite"></section>
   </main>
 </div>
+<div id="tip" role="tooltip" hidden></div>
 
 <script>
 /**
@@ -2594,8 +2614,9 @@ var ClayShapes = (function () {
   document.querySelectorAll('[data-num]').forEach(function (holder) {
     var key = holder.dataset.num, id = 'in_' + key;
     holder.classList.add('row');
-    holder.innerHTML = '<label for="' + id + '"><span>' + holder.dataset.label + (holder.dataset.unit ? ' <span class="hint">(' + holder.dataset.unit + ')</span>' : '') +
+    holder.innerHTML = '<div class="rowhead"><label for="' + id + '"><span>' + holder.dataset.label + (holder.dataset.unit ? ' <span class="hint">(' + holder.dataset.unit + ')</span>' : '') +
       '</span>' + (holder.dataset.hint ? '<span class="hint">' + holder.dataset.hint + '</span>' : '') + '</label>' +
+      '<button type="button" class="tipbtn" data-tipkey="num:' + key + '" aria-label="About ' + holder.dataset.label + '" aria-expanded="false">?</button></div>' +
       '<input type="range" id="' + id + '" min="' + holder.dataset.min + '" max="' + holder.dataset.max + '" step="' + holder.dataset.step + '">' +
       '<input type="number" aria-label="' + holder.dataset.label + '" min="' + holder.dataset.min + '" max="' + holder.dataset.max + '" step="' + holder.dataset.step + '">';
     var r = holder.querySelector('input[type=range]'), n = holder.querySelector('input[type=number]');
@@ -2653,10 +2674,23 @@ var ClayShapes = (function () {
     var L = LIMITS[presetKey] || {};
     Object.keys(origRange).forEach(function (k) { setRange(k, origRange[k][0], origRange[k][1]); });
     var sel = document.getElementById('pattern'), allowed = TEACHER ? ALL_PATTERNS : (L.patterns || ALL_PATTERNS);
-    Array.prototype.forEach.call(sel.options, function (o) { o.hidden = allowed.indexOf(o.value) < 0; o.disabled = allowed.indexOf(o.value) < 0; });
+    var offered = studentPatterns(), anyOff = false;
+    Array.prototype.forEach.call(sel.options, function (o) {
+      if (!o.dataset.name) o.dataset.name = o.textContent;
+      var ok = allowed.indexOf(o.value) >= 0;
+      o.disabled = !ok; o.hidden = !ok && offered.indexOf(o.value) < 0;
+      o.textContent = o.dataset.name + (ok || o.hidden ? '' : ' (on other shapes)');
+      if (!ok && !o.hidden) anyOff = true;
+    });
+    document.getElementById('patternNote').textContent = anyOff ? 'Greyed-out patterns come on other shapes. Hover over or tap the ? to see which.' : '';
     if (allowed.indexOf(state.pattern) < 0) state.pattern = 'NONE';
     var rims = TEACHER ? ['FLAT', 'WAVE', 'SLOPED', 'TABS'] : (L.rims || ['FLAT']);
-    document.querySelectorAll('#rim button').forEach(function (b) { b.style.display = rims.indexOf(b.dataset.v) < 0 ? 'none' : ''; });
+    var rimOff = false;
+    document.querySelectorAll('#rim button').forEach(function (b) {
+      var off = rims.indexOf(b.dataset.v) < 0; if (off) rimOff = true;
+      setOff(b, off ? rimWhy(b.dataset.v) : '');
+    });
+    document.getElementById('rimNote').textContent = rimOff ? 'Greyed-out rims come on other shapes. Hover over or tap one to see which.' : '';
     if (rims.indexOf(state.rim) < 0) state.rim = rims[0];
     if (TEACHER) return;
     Object.keys(STUDENT_COMMON).forEach(function (k) { setRange(k, STUDENT_COMMON[k][0], STUDENT_COMMON[k][1]); });
@@ -2668,7 +2702,9 @@ var ClayShapes = (function () {
   function segBind(id, key) {
     var el = document.getElementById(id);
     el.querySelectorAll('button').forEach(function (b) {
+      b.dataset.tipkey = 'seg:' + id + ':' + b.dataset.v;
       b.addEventListener('click', function () {
+        if (b.getAttribute('aria-disabled') === 'true') return;     // greyed out: the click shows why instead
         state[key] = b.dataset.v;
         if (key === 'view') {           // changing the view doesn't change the print: just redraw
           document.querySelectorAll('#viewmode button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === state.view); });
@@ -2826,10 +2862,11 @@ var ClayShapes = (function () {
     vis('.only-star', state.outline === 'STAR'); vis('.only-spout', state.outline === 'TEARDROP');
     vis('.only-tex', state.pattern !== 'NONE'); vis('.only-rep', state.pattern !== 'BANDS');
     var beadOK = beadsAllowed();
-    document.querySelectorAll('#bead button').forEach(function (b) { b.disabled = beadOK.indexOf(b.dataset.v) < 0; });
+    document.querySelectorAll('#bead button').forEach(function (b) { setOff(b, beadOK.indexOf(b.dataset.v) < 0 ? beadWhy(b.dataset.v) : ''); });
     if (beadOK.indexOf(state.bead) < 0) { state.bead = 'STEADY'; document.querySelectorAll('#bead button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === 'STEADY'); }); }
     document.getElementById('beadNote').textContent = beadOK.length === 1
-      ? 'Bead textures are off with ' + ({ DIAMONDS: 'diamonds', BUBBLES: 'bubbles' }[state.pattern] || 'this pattern') + ': the pattern already fills the wall and the two just muddy each other.' : '';
+      ? 'Bead textures are off with ' + ({ DIAMONDS: 'diamonds', BUBBLES: 'bubbles' }[state.pattern] || 'this pattern') + ': the pattern already fills the wall and the two just muddy each other.'
+      : (beadOK.length < 4 ? 'Knit is greyed out because it doesn\u2019t go with spiral ribs. Hover over or tap it to see why.' : '');
     vis('.only-bead', state.bead && state.bead !== 'STEADY');
     vis('.only-fade', state.pattern !== 'NONE' || (state.bead && state.bead !== 'STEADY'));
     vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS'].indexOf(state.pattern) >= 0);
@@ -3268,6 +3305,190 @@ var ClayShapes = (function () {
       else if (state.fdm === 'VASE' && state.rim !== 'FLAT') alert('Vase mode prints a flat lid line on a sloped or tabbed rim. Use “Walled cup” for those.');
     } catch (e) { alert('Couldn’t make the STL: ' + e.message); }
   });
+
+  // ---------- pop-up help ----------
+  // What each setting does. To change the wording, edit the text here.
+  // num: sliders (by their data-num name). seg: the button rows (by group, then button). pattern: the pattern menu.
+  var TIPS = {
+    num: {
+      width: 'How wide the piece is at its widest point, after firing. The printer makes it bigger while it\u2019s wet, to allow for shrinkage.',
+      height: 'How tall the piece is after firing. On wide shapes the shortest heights are locked, because a short, wide wall leans too far to print in wet clay.',
+      lobes: 'How many points the star outline has. More points give a finer, more fluted edge.',
+      lobe_depth: 'How deep the dips between the star points go. Higher numbers give sharper, deeper points.',
+      length: 'How far the spout reaches out from the cup.',
+      tip_width: 'How wide the end of the spout is. A narrower tip pours a finer stream.',
+      twist: 'Turns the shape as it rises, so the points and ribs spiral around the piece. 0 goes straight up, and a minus number twists the other way.',
+      depth: 'How far the pattern stands out from the wall. Deeper patterns show more strongly but are harder to print.',
+      repeats: 'How many times the pattern repeats around the piece, such as the number of ribs. It\u2019s limited so each repeat has room on the narrowest part of the wall.',
+      pitch: 'How tall one repeat of the pattern is. Smaller numbers give tighter spirals or more rows of diamonds or bubbles.',
+      fade_top: 'A plain band at the lip with no pattern or bead texture, so the drinking edge stays smooth.',
+      fade_bottom: 'A plain band at the foot with no pattern or bead texture, so the piece has a clean, solid base.',
+      bead_amt: 'How much the clay line swells and thins. Higher numbers show more but can look lumpy.',
+      bead_n: 'How many swells go around the piece in each layer. Fewer, bigger swells show up more clearly in clay.',
+      tilt: 'How steeply the rim slopes from the spout end down to the back.',
+      drop: 'How far the rim at the spout end sits below the piece\u2019s full height.',
+      wave_n: 'How many high points the wavy rim has, like the petals of a tulip.',
+      wave_d: 'How far the rim dips between the high points. Bigger dips make a more dramatic wave.',
+      tab_h: 'How tall the two hanger tabs stand above the rim.',
+      shrink: 'How much this clay shrinks from wet to fired. The piece is printed this much bigger so the fired size matches.',
+      LayerH: 'How thick each layer of clay is. Thinner layers look smoother and cope with steeper leans, but take longer.',
+      LineW: 'How wide each printed line of clay is. Keep it close to the nozzle size.',
+      Speed: 'How fast the nozzle moves while printing. Slower gives the clay more time to settle.',
+      Mix: 'The printer\u2019s clay flow setting (M163 mix). Higher numbers push less clay: raise it if lines come out fat, lower it if they come out thin.',
+      BaseLayers: 'How many solid layers make the floor of the piece.',
+      SkirtLaps: 'Laps of clay around the piece before it starts, to get the clay flowing evenly. Peel them away afterwards. 0 turns them off.',
+      FirstSpeed: 'Speed for the first layer only, so the base settles evenly on the plate.',
+      MaxStep: 'How far each layer may lean out past the one below, as a share of the line width, before the page warns. Students are held to ' + STUDENT_STEP + '%.',
+      wall: 'Wall thickness of the plastic STL model.',
+      floor: 'Floor thickness of the plastic STL model.'
+    },
+    seg: {
+      outline: { CIRCLE: 'A round outline.', STAR: 'A star outline. Set how many points under Star points.', TEARDROP: 'A teardrop outline with a pouring spout.' },
+      bead: {
+        STEADY: 'The same amount of clay all the way round, for a plain, even line.',
+        PEARLS: 'The clay line swells and thins in a row of beads, stacked straight up the wall.',
+        KNIT: 'The swells shift half a step every layer, so they interlock like knitted stitches.',
+        DIAGONAL: 'The swells drift a little each layer, making slanted lines up the wall.'
+      },
+      rim: {
+        FLAT: 'A level rim, the classic choice.',
+        WAVE: 'The rim rises and falls like a tulip. The printer builds the waves directly, so there\u2019s no trimming.',
+        SLOPED: 'The rim tilts from a high spout end down to the back, for pouring.',
+        TABS: 'Two tabs rise from the rim. Punch a hole through each when leather-hard, to hang it on a string or wire.'
+      },
+      viewmode: {
+        SHAPE: 'The finished piece.',
+        WIRE: 'A see-through mesh, so you can see the inside of the wall.',
+        PATH: 'The line the nozzle draws, layer by layer.',
+        BOTH: 'The piece and the nozzle path together.'
+      },
+      fdm: {
+        WALLED: 'A hollow cup with real walls and a floor. Works with any plastic printer.',
+        VASE: 'A solid shape for the slicer\u2019s vase mode, which prints only the outer wall.'
+      }
+    },
+    pattern: {
+      NONE: 'a plain wall', RIBS: 'straight ridges running up the wall', SPIRAL: 'ridges that wind around the piece as it rises',
+      BANDS: 'rings around the piece', BUBBLES: 'rows of round bumps', DIAMONDS: 'a criss-cross of raised diamonds',
+      SCALLOPS: 'rounded flutes running up the wall'
+    },
+    adaptive: 'Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer to print.'
+  };
+  var PATTERN_NAMES = { NONE: 'Smooth', RIBS: 'Vertical ribs', SPIRAL: 'Spiral ribs', BANDS: 'Bands', BUBBLES: 'Bubbles', DIAMONDS: 'Diamonds', SCALLOPS: 'Scalloped flutes' };
+  var RIM_NAMES = { FLAT: 'Flat', WAVE: 'Wavy', SLOPED: 'Sloped', TABS: 'Hanger tab' };
+
+  function setOff(b, why) {               // grey out a button but keep it hoverable and tappable, so it can explain itself
+    if (why) { b.setAttribute('aria-disabled', 'true'); b.dataset.why = why; }
+    else { b.removeAttribute('aria-disabled'); delete b.dataset.why; }
+  }
+  function shapeName(k) { return ((S.PRESETS[k] || {}).label || k).toLowerCase(); }
+  function joinList(a) { return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1]; }
+  function shapesWith(field, v) {
+    return Object.keys(LIMITS).filter(function (k) { return (LIMITS[k][field] || (field === 'patterns' ? ALL_PATTERNS : ['FLAT'])).indexOf(v) >= 0; }).map(shapeName);
+  }
+  function studentPatterns() {
+    var o = [];
+    Object.keys(LIMITS).forEach(function (k) { (LIMITS[k].patterns || ALL_PATTERNS).forEach(function (p) { if (o.indexOf(p) < 0) o.push(p); }); });
+    return o;
+  }
+  function rimWhy(v) {
+    var where = shapesWith('rims', v);
+    return 'The ' + shapeName(presetKey) + ' doesn\u2019t come with this rim. ' +
+      (where.length ? RIM_NAMES[v] + ' rims are on the ' + joinList(where) + '.' : '') ;
+  }
+  function beadWhy(v) {
+    if (state.pattern === 'DIAMONDS' || state.pattern === 'BUBBLES')
+      return 'Bead textures are off with ' + PATTERN_NAMES[state.pattern].toLowerCase() + ': the pattern already fills the wall, and the two together look muddy. Set the pattern to Smooth or Vertical ribs to use it.';
+    if (state.pattern === 'SPIRAL' && v === 'KNIT')
+      return 'Knit doesn\u2019t go with spiral ribs: the two textures run across each other and blur. Try Pearls or Diagonal, or set the pattern to Smooth or Vertical ribs.';
+    return 'This texture doesn\u2019t go with the current pattern.';
+  }
+  function patternHelp() {
+    var sel = document.getElementById('pattern'), html = '<p>Changes the shape of the wall. Now: <b style="display:inline">' +
+      PATTERN_NAMES[state.pattern] + '</b>, ' + TIPS.pattern[state.pattern] + '.</p>', off = [];
+    Array.prototype.forEach.call(sel.options, function (o) {
+      if (o.disabled && !o.hidden) off.push(PATTERN_NAMES[o.value] + ' is on the ' + joinList(shapesWith('patterns', o.value)) + '.');
+    });
+    if (off.length) html += '<p class="why">Greyed out for the ' + shapeName(presetKey) + ':<br>' + off.join('<br>') + '</p>';
+    return html;
+  }
+  function tipHTML(el) {
+    var key = el.dataset.tipkey.split(':'), title = '', body = '';
+    if (key[0] === 'num') {
+      var holder = document.querySelector('[data-num="' + key[1] + '"]');
+      title = holder ? holder.dataset.label : ''; body = '<p>' + (TIPS.num[key[1]] || '') + '</p>';
+    } else if (key[0] === 'seg') {
+      title = el.textContent; body = '<p>' + ((TIPS.seg[key[1]] || {})[key[2]] || '') + '</p>';
+    } else if (key[0] === 'pattern') { title = 'Surface pattern'; body = patternHelp(); }
+    else if (key[0] === 'adaptive') { title = 'Adaptive layers'; body = '<p>' + TIPS.adaptive + '</p>'; }
+    if (el.dataset.why) body += '<p class="why"><b>Why it\u2019s greyed out</b>' + el.dataset.why + '</p>';
+    return title || body ? '<b>' + title + '</b>' + body : '';
+  }
+
+  var tipEl = document.getElementById('tip'), tipFor = null, tipPinned = false, tipTimer = 0;
+  function placeTip() {
+    if (!tipFor) return;
+    var a = (tipFor.closest('.row, .rowhead') || tipFor).getBoundingClientRect(), t = tipEl.getBoundingClientRect();
+    var W = window.innerWidth, H = window.innerHeight, side = tipFor.closest('aside'), x, y;
+    if (side && W > 820) { x = side.getBoundingClientRect().right + 12; y = a.top + a.height / 2 - t.height / 2; }   // beside the panel, over the 3D view
+    else { x = a.left; y = a.bottom + 8; if (y + t.height > H - 8) y = a.top - t.height - 8; }
+    tipEl.style.left = Math.max(8, Math.min(x, W - t.width - 8)) + 'px';
+    tipEl.style.top = Math.max(8, Math.min(y, H - t.height - 8)) + 'px';
+  }
+  function showTip(el, pinned) {
+    var html = tipHTML(el); if (!html) return;
+    clearTimeout(tipTimer);
+    if (tipFor && tipFor !== el) hideTip();
+    tipFor = el; tipPinned = !!pinned;
+    tipEl.innerHTML = html; tipEl.hidden = false;
+    el.setAttribute('aria-describedby', 'tip');
+    if (el.classList.contains('tipbtn')) el.setAttribute('aria-expanded', 'true');
+    placeTip();
+  }
+  function hideTip() {
+    clearTimeout(tipTimer);
+    if (tipFor) { tipFor.removeAttribute('aria-describedby'); if (tipFor.classList.contains('tipbtn')) tipFor.setAttribute('aria-expanded', 'false'); }
+    tipFor = null; tipPinned = false; tipEl.hidden = true;
+  }
+  function tipTarget(node) {              // a slider's whole row shares its ? button's help
+    var el = node && node.closest ? node.closest('[data-tipkey], .row') : null;
+    if (el && !el.dataset.tipkey) el = el.querySelector('.tipbtn');
+    return el;
+  }
+  document.addEventListener('pointerover', function (e) {
+    if (e.pointerType !== 'mouse' || tipPinned) return;
+    var el = tipTarget(e.target);
+    if (!el || el === tipFor) return;
+    clearTimeout(tipTimer);
+    tipTimer = setTimeout(function () { showTip(el); }, el.classList.contains('tipbtn') ? 0 : 350);
+  });
+  document.addEventListener('pointerout', function (e) {
+    if (e.pointerType !== 'mouse' || tipPinned) return;
+    var from = tipTarget(e.target), to = tipTarget(e.relatedTarget);
+    if (from === to) return;
+    clearTimeout(tipTimer);
+    if (tipFor && tipFor === from) hideTip();
+  });
+  document.addEventListener('pointerdown', function (e) {
+    if (e.target.type === 'range' && !tipPinned) { hideTip(); return; }       // get out of the way while dragging a slider
+    if (tipPinned && tipTarget(e.target) !== tipFor) hideTip();
+  });
+  document.addEventListener('click', function (e) {
+    var el = tipTarget(e.target);
+    if (!el) return;
+    if (el.classList.contains('tipbtn')) {
+      e.preventDefault();
+      if (tipFor === el && tipPinned) hideTip(); else showTip(el, true);
+    } else if (el.getAttribute('aria-disabled') === 'true') showTip(el, true);
+  });
+  document.addEventListener('focusin', function (e) {
+    var el = e.target;
+    if ((el.classList.contains('tipbtn') || el.getAttribute('aria-disabled') === 'true') && el.matches(':focus-visible')) showTip(el);
+  });
+  document.addEventListener('focusout', function (e) { if (e.target === tipFor && !tipPinned) hideTip(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && tipFor) hideTip(); });
+  window.addEventListener('scroll', function () { if (tipFor) { if (tipPinned) placeTip(); else hideTip(); } }, true);
+  window.addEventListener('resize', function () { if (tipFor) placeTip(); });
 
   themeColors(); resize();
   if (window.ResizeObserver) new ResizeObserver(resize).observe(view);
