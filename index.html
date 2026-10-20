@@ -172,6 +172,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
       <button class="chip" data-preset="VASE">Star vase</button>
       <button class="chip" data-preset="TULIP">Tulip vase</button>
       <button class="chip" data-preset="ORNAMENT">Ornament</button>
+      <button class="chip" data-preset="STACK">Stacking candle</button>
     </div>
   </header>
 
@@ -278,6 +279,16 @@ body:not(.teacher) .teacher-only { display: none !important; }
           <p class="note">Two tabs rise from the rim. Punch a hole through each when leather-hard, for a string or wire.</p>
         </div>
         <button class="reset" data-reset="rim">Reset rim</button>
+      </details>
+
+      <details class="only-stack" open>
+        <summary>Stacking</summary>
+        <p class="note">The narrow round foot sits down inside the rim of the piece below, so a set stacks like segments of bamboo. The foot follows the rim size, so every piece made with the same settings fits every other.</p>
+        <div data-num="stack_clear" data-label="Fit gap" data-unit="mm" data-hint="room around the foot" data-min="0.5" data-max="4" data-step="0.1"></div>
+        <div data-num="stack_depth" data-label="Foot depth" data-unit="mm" data-hint="how far it sits down" data-min="4" data-max="20" data-step="0.5"></div>
+        <p class="note" id="stackInfo"></p>
+        <p class="note">New and untested on the printer: print two small ones first and check the fit after firing. Keep glaze off the outside of the foot and the inside of the rim, where the pieces touch. Unstack before lighting.</p>
+        <button class="reset" data-reset="stack">Reset stacking</button>
       </details>
 
       <details class="teacher-only">
@@ -2285,6 +2296,12 @@ var ClayShapes = (function () {
     VASE: { label: 'Star vase', outline: 'STAR', width: 90, height: 150, lobes: 6, lobe_depth: 0.18, twist: 90,
       profile: [[0.0, 0.62, 0.62], [0.25, 0.95, 0.95], [0.55, 1.0, 1.0], [0.8, 0.74, 0.74], [1.0, 0.8, 0.8]],
       pattern: 'NONE', depth: 1.0, repeats: 14, pitch: 60, fade_top: 0, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
+    // Stacking candle: the round foot nests in the rim of the piece below, like bamboo segments.
+    // The foot is worked out from the rim width, the clay line and the fit gap (see "stacking foot" in Shape).
+    STACK: { label: 'Stacking candle', outline: 'CIRCLE', width: 70, height: 75, lobes: 6, lobe_depth: 0.15, twist: 0,
+      profile: [[0.0, 1.0, 1.0], [0.45, 0.96, 0.96], [0.86, 0.99, 0.99], [0.94, 1.03, 1.03], [1.0, 1.0, 1.0]],
+      pattern: 'RIBS', depth: 0.5, repeats: 18, pitch: 60, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
+      stack: true, stack_clear: 1.5, stack_depth: 8 },
     ORNAMENT: { label: 'Ornament', outline: 'STAR', width: 65, height: 70, lobes: 8, lobe_depth: 0.12, twist: 75,
       profile: [[0.0, 0.58, 0.58], [0.28, 0.88, 0.88], [0.5, 1.0, 1.0], [0.74, 0.86, 0.86], [0.93, 0.52, 0.52], [1.0, 0.40, 0.40]],
       pattern: 'NONE', depth: 1.0, repeats: 10, pitch: 60, fade_top: 6, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 }
@@ -2408,6 +2425,36 @@ var ClayShapes = (function () {
     this.P = Number(spec.pitch || 30);
     this.ft = Number(spec.fade_top || 0);
     this.fb = Number(spec.fade_bottom || 0);
+    // stacking foot (round pieces only): a narrow round foot that sits inside the rim of the piece below.
+    // Sizes are fired mm along the nozzle path; the clay line adds half its width either side of the path.
+    //   foot path diameter = rim path diameter - 2 x line width - fit gap
+    // so the foot's outside is one fit gap smaller than the rim's inside. Above the foot a 40-degree
+    // shoulder (gentle enough for wet clay) flares out to the body, and that shoulder rests on the
+    // inside edge of the rim below, which also centres the pieces.
+    this.stack = null; this.ftOff = 0; this.fbOff = 0;
+    if (spec.stack && spec.outline === 'CIRCLE') {
+      var body = this.sx, Hb0 = this.Hb, tanA = Math.tan(40 * Math.PI / 180);
+      var lw = Math.max(0.5, Number(spec.stack_lw || 2.6)), gap = Math.max(0, Number(spec.stack_clear || 0));
+      var hs = Math.max(1, Number(spec.stack_depth || 8)), rimD = W * body(1), footR = (rimD - 2 * lw - gap) / 2;
+      if (footR < 10) throw new Error('The rim is too narrow for a stacking foot. Make the piece wider.');
+      var zEnd = -1;
+      for (var zz = hs; zz <= Hb0 * 0.6; zz += 0.05) { if (footR + (zz - hs) * tanA >= R * body(zz / Hb0)) { zEnd = zz; break; } }
+      var seatZ = hs + gap / 2 / tanA;                    // where the shoulder touches the rim below
+      var shoulderR = zEnd < 0 ? 0 : footR + (zEnd - hs) * tanA;
+      if (zEnd < 0) zEnd = hs;
+      this.sx = this.sy = function (t) {
+        var z = t * Hb0;
+        if (z < hs) return footR / R;
+        if (z < zEnd) return (footR + (z - hs) * tanA) / R;
+        return body(t);
+      };
+      this.stack = { footD: 2 * footR + lw, openD: rimD - lw, gap: gap, seat: seatZ, shoulderTop: zEnd,
+        ok: shoulderR >= rimD / 2 - lw + 0.5 };              // shoulder must reach past the rim's inside edge to rest on it
+      // keep the fitting surfaces smooth: no pattern or bead texture at all on the foot and shoulder, or where
+      // the foot above sits inside the rim. The usual smooth bands then start beyond those zones.
+      this.fbOff = zEnd + 1; this.ftOff = seatZ + 1;
+      this.ft = Math.max(this.ft, 4); this.fb = Math.max(this.fb, 4);
+    }
     this.plane = null;
     // wavy rim: wave_n high points around, dipping wave_d mm between them; the first high point
     // sits at the front and turns with the twist so it stays on the same flute
@@ -2453,9 +2500,9 @@ var ClayShapes = (function () {
       var d = pattern_value(this.pattern, this.A, this.R, this.P, i / this.n, z), f = 1;
       if (this.ft > 0) {
         if (!this._rim) { this._rim = []; for (var k = 0; k < this.n; k++) this._rim.push(this.rim(k)); }
-        f *= smoothstep((this._rim[i] - z) / this.ft);
+        f *= smoothstep((this._rim[i] - z - this.ftOff) / this.ft);
       }
-      if (this.fb > 0) f *= smoothstep(z / this.fb);
+      if (this.fb > 0) f *= smoothstep((z - this.fbOff) / this.fb);
       x += sm[2] * d * f; y += sm[3] * d * f;
     }
     return [x, y];
@@ -2593,6 +2640,8 @@ var ClayShapes = (function () {
       patterns: CUP_TEX, rims: ['FLAT', 'WAVE'], depth: [0.5, 1.0], pitch_d: 22, wave_n: [2, 6], wave_d: [6, 20] },
     TULIP: { width: [70, 100], height: [100, 160], aspect: 1.3, lobes: [8, 12], lobe_depth: [0.06, 0.15], twist: [-90, 90],
       patterns: ['NONE', 'RIBS'], rims: ['WAVE', 'FLAT'], depth: [0.5, 0.8], wave_n: [2, 6], wave_d: [6, 20] },
+    STACK: { width: [55, 90], height: [50, 100], aspect: 0.7, twist: [-30, 30], patterns: ['NONE', 'RIBS'], rims: ['FLAT'],
+      depth: [0.5, 0.8], stack_clear: [1, 2.5], stack_depth: [6, 12] },
     ORNAMENT: { width: [60, 75], height: [62, 85], aspect: 1.05, lobes: [6, 10], lobe_depth: [0.06, 0.15], twist: [-60, 60],
       patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [5, 10], depth: [0.5, 0.8] }
   };
@@ -2604,7 +2653,8 @@ var ClayShapes = (function () {
     presetKey = key;
     var p = clone(S.PRESETS[key]), keep = {};
     Object.keys(CLAY_DEFAULTS).forEach(function (k) { keep[k] = (k in state) ? state[k] : CLAY_DEFAULTS[k]; });
-    state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16 }, p, keep);
+    state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16,
+      stack: false, stack_clear: 1.5, stack_depth: 8 }, p, keep);
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === key); });
     applyLimits(); syncAll(); changed(true);
   }
@@ -2771,7 +2821,8 @@ var ClayShapes = (function () {
     var note = document.getElementById('shapeNote');
     if (note) note.textContent = M.spout
       ? 'Seen from the side: back on the left, spout on the right. Drag the dots to change how far the spout reaches at each height; the back follows. Dots can also move up and down.'
-      : 'Drag the dots to change how wide the wall is at each height, like drawing a potter\u2019s profile. Dots can also move up and down.';
+      : 'Drag the dots to change how wide the wall is at each height, like drawing a potter\u2019s profile. Dots can also move up and down.' +
+        (state.stack ? ' The stacking foot at the bottom is shaped for you, to fit the rim.' : '');
     if (!M.spout) {
       svg.appendChild(svgEl('line', { x1: SV.cx, y1: 8, x2: SV.cx, y2: SV.y0 + 4, 'class': 'axis' }));
       if (sh) {
@@ -2870,6 +2921,7 @@ var ClayShapes = (function () {
     vis('.only-bead', state.bead && state.bead !== 'STEADY');
     vis('.only-fade', state.pattern !== 'NONE' || (state.bead && state.bead !== 'STEADY'));
     vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS'].indexOf(state.pattern) >= 0);
+    vis('.only-stack', !!state.stack);
     vis('.only-sloped', state.rim === 'SLOPED'); vis('.only-tabs', state.rim === 'TABS'); vis('.only-wave', state.rim === 'WAVE'); vis('.only-walled', state.fdm === 'WALLED');
   }
   function syncAll() {
@@ -3066,7 +3118,8 @@ var ClayShapes = (function () {
     return { outline: state.outline, width: state.width, length: state.length, tip_width: state.tip_width, height: state.height,
       lobes: state.lobes, lobe_depth: state.lobe_depth, twist: state.twist, profile: state.profile, pattern: state.pattern,
       depth: state.depth, repeats: state.repeats, pitch: state.pitch, fade_top: state.fade_top, fade_bottom: state.fade_bottom,
-      rim: state.rim, tilt: state.tilt, drop: state.drop, tab_h: state.tab_h, wave_n: state.wave_n, wave_d: state.wave_d };
+      rim: state.rim, tilt: state.tilt, drop: state.drop, tab_h: state.tab_h, wave_n: state.wave_n, wave_d: state.wave_d,
+      stack: !!state.stack, stack_clear: state.stack_clear, stack_depth: state.stack_depth, stack_lw: state.LineW / k() };
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.BaseLayers,
@@ -3076,17 +3129,18 @@ var ClayShapes = (function () {
   var lastRes = null, lastKey = '', tPrev = 0, tSlice = 0;
   function smooth01(t) { t = t < 0 ? 0 : (t > 1 ? 1 : t); return t * t * (3 - 2 * t); }
   // clay-flow multiplier for the bead texture: sFrac = 0-1 around the wall, z and toRim in printed mm
-  function beadFn() {
+  function beadFn(sh) {
     if (!state.bead || state.bead === 'STEADY') return null;
     var A = (state.bead_amt || 0) / 100, R = Math.max(1, Math.round(state.bead_n || 16)), K = k();
-    var ft = (state.fade_top || 0) * K, fb = (state.fade_bottom || 0) * K, mode = state.bead, LH = state.LayerH || 1;
+    var ft = (sh ? sh.ft : state.fade_top || 0) * K, fb = (sh ? sh.fb : state.fade_bottom || 0) * K,
+      ftOff = (sh ? sh.ftOff : 0) * K, fbOff = (sh ? sh.fbOff : 0) * K, mode = state.bead, LH = state.LayerH || 1;
     return function (sf, z, layer, toRim) {
       var ph = R * sf;
       if (mode === 'KNIT') ph += (layer % 2) * 0.5;
       if (mode === 'DIAGONAL') ph += layer / 12;
       var m = 1;
-      if (ft > 0) m *= smooth01(toRim / ft);
-      if (fb > 0) m *= smooth01(z / fb);
+      if (ft > 0) m *= smooth01((toRim - ftOff) / ft);
+      if (fb > 0) m *= smooth01((z - fbOff) / fb);
       return 1 + A * m * Math.sin(2 * Math.PI * ph);
     };
   }
@@ -3143,7 +3197,8 @@ var ClayShapes = (function () {
     profile: ['profile'],
     pattern: ['pattern', 'depth', 'repeats', 'pitch', 'fade_top', 'fade_bottom'],
     rim: ['rim', 'tilt', 'drop', 'tab_h', 'wave_n', 'wave_d'],
-    bead: ['bead', 'bead_amt', 'bead_n']
+    bead: ['bead', 'bead_amt', 'bead_n'],
+    stack: ['stack_clear', 'stack_depth']
   };
   document.querySelectorAll('[data-reset]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -3181,7 +3236,7 @@ var ClayShapes = (function () {
         setRange('repeats', 4, maxR);
         if (numEls.repeats[0].value != state.repeats) { numEls.repeats[0].value = state.repeats; numEls.repeats[1].value = state.repeats; sh = new S.Shape(spec(), 320); }
       }
-      var bf = beadFn(), skin = sh.skin_mesh(bf ? (state.LayerH || 1) / K : 1.0, K); skin.n = sh.n;
+      var bf = beadFn(sh), skin = sh.skin_mesh(bf ? (state.LayerH || 1) / K : 1.0, K); skin.n = sh.n;
       if (bf) {      // show the bead texture in the preview: push each ring out or in by the swell
         var Ht = sh.H * K, n = sh.n;
         for (var vi = 0; vi < skin.verts.length - 1; vi++) {
@@ -3195,6 +3250,13 @@ var ClayShapes = (function () {
       setPiece(skin);
       if (dragging < 0) drawSilhouette();
       var f = function (v) { return Math.round(v); };
+      var si = document.getElementById('stackInfo');
+      if (state.stack) {
+        var st = sh.stack, f1 = function (v) { return v.toFixed(1); };
+        si.textContent = !st ? 'Stacking needs the Round outline.' :
+          'After firing: the foot is about ' + f1(st.footD) + ' mm across and the rim opening about ' + f1(st.openD) + ' mm across inside. ' +
+          'Each piece sits about ' + f1(st.seat) + ' mm down into the one below, so fill wax to at least ' + Math.ceil(st.seat + 5) + ' mm below the rim.';
+      }
       document.getElementById('dims').innerHTML = 'After firing about <strong>' + f(state.width) + ' mm</strong> wide and <strong>' + f(sh.H) +
         ' mm</strong> tall. Printed ' + f((K - 1) * 100) + '% bigger while wet.';
       applyView();
@@ -3204,10 +3266,11 @@ var ClayShapes = (function () {
     var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n]);
     try {
       var sh = new S.Shape(spec(), 400), K = k();
-      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(),
+      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(sh),
         note: 'FOR THE EAZAO POTTER X-1 CLAY PRINTER ONLY - do not run this file on any other printer',
         source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') });
       lastKey = key;
+      if (lastRes.ok && sh.stack && !sh.stack.ok) (lastRes.warnings = lastRes.warnings || []).push('STACK: shoulder too narrow');
       setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes);
       var mi = lastRes.ok ? lastRes.max_initials : 0;
       document.getElementById('initFit').textContent = mi ? 'This base has room for up to ' + mi + ' letter' + (mi > 1 ? 's' : '') + '.' :
@@ -3219,7 +3282,7 @@ var ClayShapes = (function () {
   function overBarrel(res) { return !!res && res.ok && (res.clay_ml || 0) > BARREL_ML; }
   function blocked(res) {
     if (TEACHER || !res || !res.ok) return false;
-    return overBarrel(res) || (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest)/.test(w); });
+    return overBarrel(res) || (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest|STACK:)/.test(w); });
   }
   function drawBottom(res) {
     var cv = document.getElementById('bottom'), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -3252,6 +3315,7 @@ var ClayShapes = (function () {
     if ((m = /^Steep overhang .*worst at layer (\d+)/.exec(w)))
       return 'The wall leans in or out too quickly about ' + m[1] + ' mm up from the foot (while wet). Like a pot flaring too fast on the wheel, ' +
         'it would slump. Make the side shape change more gradually there, or use less twist or a shallower pattern.';
+    if (/^STACK:/.test(w)) return 'Won\u2019t stack: just above the foot, the wall needs to flare out wider than the rim\u2019s inside, so it can rest on the piece below. Make the side shape wider near the foot.';
     if (/^OFF THE BED/.test(w)) return 'Too big for the printer plate. Make it narrower.';
     if (/^BARREL:/.test(w)) return 'This needs about ' + w.replace(/\D+/g, '') + ' ml of clay, more than one full barrel (about ' + BARREL_ML +
       ' ml), so the printer would run out partway through. Refilling mid-print isn\u2019t supported yet: make the piece smaller.';
@@ -3330,6 +3394,8 @@ var ClayShapes = (function () {
       wave_n: 'How many high points the wavy rim has, like the petals of a tulip.',
       wave_d: 'How far the rim dips between the high points. Bigger dips make a more dramatic wave.',
       tab_h: 'How tall the two hanger tabs stand above the rim.',
+      stack_clear: 'How much room there is around the foot when it sits in the rim below. More gap fits more easily; less gap wobbles less. If your test pieces jam, add gap; if they rattle, take some away.',
+      stack_depth: 'How tall the narrow foot is before the wall flares out. A deeper foot sits further down into the piece below, which leaves less room for wax in that piece.',
       shrink: 'How much this clay shrinks from wet to fired. The piece is printed this much bigger so the fired size matches.',
       LayerH: 'How thick each layer of clay is. Thinner layers look smoother and cope with steeper leans, but take longer.',
       LineW: 'How wide each printed line of clay is. Keep it close to the nozzle size.',

@@ -22,6 +22,7 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 | Star vase | 90 mm wide, 150 mm tall, twisted, flat or wavy rim |
 | Tulip vase | 90 mm wide, 130 mm tall, fluted, with a wavy rim |
 | Ornament | 65 mm wide, 70 mm tall, twisted star, optional hanger tabs |
+| Stacking candle | 70 mm wide, 75 mm tall, nests into the next one like bamboo segments |
 
 **Surface patterns:** vertical ribs, spiral ribs, diamonds and bubbles. Which ones are offered depends on the shape.
 
@@ -29,13 +30,19 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 
 **Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming.
 
+**Stacking candles:** each piece has a narrow round foot that sits down inside the rim of the one below, so a set stacks like segments of bamboo. Above the foot, the wall flares out at a gentle 40° shoulder that rests on the inside edge of the rim below and centres the piece. The foot size is worked out from the rim every time:
+
+> foot diameter = rim diameter − 2 × clay wall thickness − fit gap
+
+so every piece made at the same width and settings fits every other. Two sliders set the **fit gap** (room around the foot) and the **foot depth** (how far it sits down), and the page shows the fired foot size, the rim opening, and how far below the rim to keep the wax. Patterns and bead textures are kept off the foot, the shoulder and the inside of the rim, so they can't spoil the fit.
+
 Every shape has built-in limits that keep designs printable. If a change would make the wall lean too far for wet clay, or the piece would need more than one barrel of clay, the page says so in plain language and the save button turns off until it's fixed.
 
 ## How to use it
 
 1. Open the link above in Safari, Chrome or Edge.
 2. Choose a starting shape at the top.
-3. Adjust the size, side shape, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to.
+3. Adjust the size, side shape, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to. To see what a setting does, hover over it or tap its **?**. Greyed-out options don't go with the current shape or pattern: hover over or tap one to find out why.
 4. Optionally, add up to 3 initials for the bottom.
 5. Use **Watch it print** to see the nozzle build the piece layer by layer.
 6. When the bar under the picture says **Ready to print**, click **Save the print file**.
@@ -56,6 +63,7 @@ The bar under the picture also shows the print time, the amount of clay, and how
 - Dry, bisque and glaze as normal.
 - Keep glaze off the foot so the initials stay crisp.
 - Sizes on the page are after firing. Prints are made larger while wet to allow for about 12% shrinkage.
+- **Stacking candles:** glaze the inside so the clay doesn't soak up wax, but keep glaze off the outside of the foot and the inside of the rim, where the pieces touch. Fill wax no higher than the line the page gives, and unstack before lighting.
 
 ## For teachers
 
@@ -69,6 +77,7 @@ The core shapes and print settings have been printed many times. These newer fea
 - initials on the foot
 - adaptive layers
 - the priming loop
+- stacking candles: print two small ones first and check the fit after firing. If they jam, raise the fit gap; if they rattle, lower it. The fit math assumes the clay wall is as wide as the line-width setting, so a thicker or thinner wall changes it.
 
 ## Working offline
 
