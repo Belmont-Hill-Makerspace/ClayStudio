@@ -2939,7 +2939,6 @@ var ClayShapes = (function () {
   // ---------- 3D view ----------
   var view = document.getElementById('view');
   var renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.localClippingEnabled = true;       // lets the piece "grow" with the nozzle in the Both view
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   view.insertBefore(renderer.domElement, view.firstChild);
   var scene = new THREE.Scene();
@@ -2958,9 +2957,18 @@ var ClayShapes = (function () {
   fill.target.position.set(0, 0, -300); camera.add(fill.target);
   var rim = new THREE.DirectionalLight(0xffffff, 0.35); rim.position.set(0, 250, -200); scene.add(rim);
   var bedGroup = new THREE.Group(); scene.add(bedGroup);
-  var clipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1e6);
-  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide,
-    clippingPlanes: [clipPlane] });
+  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
+  // "Watch it print" in the Both view: every point of the piece knows when the nozzle reaches it (printT,
+  // from the nearest point on the real toolpath), and the piece shows only what has been printed so far.
+  // This follows tilted (non-planar) layers too, which a flat cutting plane can't.
+  var printT = { value: 1e9 };
+  pieceMat.onBeforeCompile = function (sh) {
+    sh.uniforms.uPrintT = printT;
+    sh.vertexShader = 'attribute float printT;\nvarying float vPrintT;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vPrintT = printT;');
+    sh.fragmentShader = 'uniform float uPrintT;\nvarying float vPrintT;\n' +
+      sh.fragmentShader.replace('void main() {', 'void main() {\n  if (vPrintT > uPrintT) discard;');
+  };
   var pieceMesh = null, pathLines = null, overPts = null, wireLines = null;
 
   function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -3021,7 +3029,7 @@ var ClayShapes = (function () {
     if (!res || !res.ok) return;
     var seg = [], col = [], zmax = res.size[2] || 1, layer = 0, tsec = 0, cur = null, spd = state.Speed || 25;
     var lo = new THREE.Color(cssColor('--piece')), hi = new THREE.Color(cssColor('--glaze')), c = new THREE.Color();
-    anim.times = []; anim.layers = []; anim.ends = []; anim.nLayers = 0;
+    anim.times = []; anim.layers = []; anim.ends = []; anim.nLayers = 0; anim.id = (anim.id || 0) + 1;
     res.moves.forEach(function (m) {
       if (m[0] === 'note') return;
       if (m[0] === 'layer') { layer = m[1]; anim.nLayers = Math.max(anim.nLayers, layer + 1); return; }
@@ -3070,11 +3078,43 @@ var ClayShapes = (function () {
     var last = anim.ends[Math.max(0, Math.min(n - 1, shown - 1))];
     nozzle.position.set(last[0], last[1] + 3.5, last[2]);
     nozzle.visible = anim.frac < 1 && pathLines.visible;
-    // In the Both view, show the piece only up to the nozzle so it builds up with the path
-    clipPlane.constant = (anim.frac < 1 && state.view === 'BOTH') ? last[1] + 0.01 : 1e6;
+    // In the Both view, show the piece only where the nozzle has already been, so it builds up with the path
+    var growing = anim.frac < 1 && state.view === 'BOTH';
+    if (growing) ensurePrintTimes();
+    printT.value = growing ? anim.times[Math.max(0, shown - 1)] : 1e9;
     info.textContent = anim.frac >= 1 ? 'Finished: ' + fmtMin(anim.total) :
       'Layer ' + (anim.layers[Math.max(0, shown - 1)] + 1) + ' of ' + anim.nLayers + ' \u00b7 ' + fmtMin(tNow) + ' of ' + fmtMin(anim.total);
     render();
+  }
+  // For each point of the piece, the time the nozzle passes closest to it. Uses a grid of the toolpath
+  // points so it stays quick; worked out once per new piece or new toolpath.
+  function ensurePrintTimes() {
+    if (!pieceMesh || !anim.ends.length) return;
+    var g = pieceMesh.geometry;
+    if (g.userData.printFor === anim.id) return;
+    var CELL = 4, grid = new Map(), ends = anim.ends, i;
+    function key(a, b, c) { return a + ',' + b + ',' + c; }
+    for (i = 0; i < ends.length; i++) {
+      var e = ends[i], kk = key(Math.floor(e[0] / CELL), Math.floor(e[1] / CELL), Math.floor(e[2] / CELL));
+      var list = grid.get(kk); if (!list) grid.set(kk, list = []); list.push(i);
+    }
+    var pos = g.attributes.position.array, n = pos.length / 3, out = new Float32Array(n);
+    for (var v = 0; v < n; v++) {
+      var x = pos[v * 3], y = pos[v * 3 + 1], z = pos[v * 3 + 2];
+      var cx = Math.floor(x / CELL), cy = Math.floor(y / CELL), cz = Math.floor(z / CELL), best = Infinity, bi = -1;
+      for (var r = 1; r <= 3 && bi < 0; r++) {          // widen the search only if nothing is close
+        for (var a = -r; a <= r; a++) for (var b = -r; b <= r; b++) for (var c = -r; c <= r; c++) {
+          var list2 = grid.get(key(cx + a, cy + b, cz + c)); if (!list2) continue;
+          for (var j = 0; j < list2.length; j++) {
+            var q = ends[list2[j]], d = (q[0] - x) * (q[0] - x) + (q[1] - y) * (q[1] - y) + (q[2] - z) * (q[2] - z);
+            if (d < best) { best = d; bi = list2[j]; }
+          }
+        }
+      }
+      out[v] = bi < 0 ? 1e8 : anim.times[bi];          // nothing near: appears when the print finishes
+    }
+    g.setAttribute('printT', new THREE.BufferAttribute(out, 1));
+    g.userData.printFor = anim.id;
   }
   function stopAnim() {
     anim.playing = false;
@@ -3108,7 +3148,8 @@ var ClayShapes = (function () {
     if (pathLines) pathLines.visible = v === 'PATH' || v === 'BOTH';
     if (overPts) overPts.visible = true;
     nozzle.visible = !!pathLines && pathLines.visible && anim.frac < 1;
-    clipPlane.constant = (anim.frac < 1 && v === 'BOTH' && nozzle.visible) ? nozzle.position.y - 3.5 + 0.01 : 1e6;
+    if (anim.frac < 1 && pathLines) { showProgress(anim.frac); return; }   // sets how much of the piece shows
+    printT.value = 1e9;
     render();
   }
 
