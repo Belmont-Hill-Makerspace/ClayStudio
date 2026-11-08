@@ -16,25 +16,21 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 | Espresso cup | 62 mm wide, 55 mm tall |
 | Cappuccino cup | 100 mm wide, 65 mm tall |
 | Tumbler | 75 mm wide, 95 mm tall |
+| Mug | 82 mm wide, 95 mm tall, with a handle printed separately |
 | Bowl | 105 mm wide, 40 mm tall, flat or wavy rim |
 | Pouring cup | Teardrop cup with a spout and a sloped rim |
 | Tealight holder | 8-point star, flat or petal rim, fits a standard tealight |
 | Star vase | 90 mm wide, 150 mm tall, twisted, flat or wavy rim |
 | Tulip vase | 90 mm wide, 130 mm tall, fluted, with a wavy rim |
 | Ornament | 65 mm wide, 70 mm tall, twisted star, optional hanger tabs |
-| Stacking candle | 70 mm wide, 75 mm tall, nests into the next one like bamboo segments |
 
 **Surface patterns:** vertical ribs, spiral ribs, diamonds and bubbles. Which ones are offered depends on the shape.
 
 **Bead textures:** pearls, knit and diagonal. These change how much clay the printer pushes as it goes, so the bead itself swells and thins without changing the shape. They're offered only with the patterns they suit.
 
+**Handles:** the mug, and optionally the espresso cup, cappuccino cup and tumbler, can have a handle. The piece gets a smooth flat strip on one side, and the handle gets its own print file (**Save the handle print file**). The handle prints lying flat, so it needs no support, and its two ends are shaped to sit flush on the strip. The page shows the finger opening, so you can check it fits. To make a class set or spares, tick **Print several handles at once**: one file then holds several copies of the same handle, as many as fit on the plate (about 3 mug handles or 8 espresso handles), built up together layer by layer. It's off by default, so a normal handle file has one handle.
+
 **Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming.
-
-**Stacking candles:** each piece has a narrow round foot that sits down inside the rim of the one below, so a set stacks like segments of bamboo. Above the foot, the wall flares out at a gentle 40° shoulder that rests on the inside edge of the rim below and centres the piece. The foot size is worked out from the rim every time:
-
-> foot diameter = rim diameter − 2 × clay wall thickness − fit gap
-
-so every piece made at the same width and settings fits every other. Two sliders set the **fit gap** (room around the foot) and the **foot depth** (how far it sits down), and the page shows the fired foot size, the rim opening, and how far below the rim to keep the wax. Patterns and bead textures are kept off the foot, the shoulder and the inside of the rim, so they can't spoil the fit.
 
 Every shape has built-in limits that keep designs printable. If a change would make the wall lean too far for wet clay, or the piece would need more than one barrel of clay, the page says so in plain language and the save button turns off until it's fixed.
 
@@ -42,7 +38,7 @@ Every shape has built-in limits that keep designs printable. If a change would m
 
 1. Open the link above in Safari, Chrome or Edge.
 2. Choose a starting shape at the top.
-3. Adjust the size, side shape, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to. To see what a setting does, hover over it or tap its **?**. Greyed-out options don't go with the current shape or pattern: hover over or tap one to find out why.
+3. Adjust the size, side shape, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to.
 4. Optionally, add up to 3 initials for the bottom.
 5. Use **Watch it print** to see the nozzle build the piece layer by layer.
 6. When the bar under the picture says **Ready to print**, click **Save the print file**.
@@ -62,8 +58,8 @@ The bar under the picture also shows the print time, the amount of clay, and how
 - Leave the piece on the plate until it firms up, then cut it free with a wire.
 - Dry, bisque and glaze as normal.
 - Keep glaze off the foot so the initials stay crisp.
+- **Handles:** print the piece and the handle on the same day so they dry together. When both are leather-hard, score both the flat strip and the handle ends, add slip, press the handle on and smooth the seam. Cut the handle free of the plate with a wire, like the piece.
 - Sizes on the page are after firing. Prints are made larger while wet to allow for about 12% shrinkage.
-- **Stacking candles:** glaze the inside so the clay doesn't soak up wax, but keep glaze off the outside of the foot and the inside of the rim, where the pieces touch. Fill wax no higher than the line the page gives, and unstack before lighting.
 
 ## For teachers
 
@@ -77,7 +73,7 @@ The core shapes and print settings have been printed many times. These newer fea
 - initials on the foot
 - adaptive layers
 - the priming loop
-- stacking candles: print two small ones first and check the fit after firing. If they jam, raise the fit gap; if they rattle, lower it. The fit math assumes the clay wall is as wide as the line-width setting, so a thicker or thinner wall changes it.
+- handles and the mug
 
 ## Working offline
 

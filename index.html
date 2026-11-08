@@ -129,7 +129,7 @@ ol.steps li { margin: 4px 0; }
 .metrics span { color: var(--muted); }
 .teacher-badge { font-size: 13px; color: var(--glaze); border: 1px solid var(--glaze); border-radius: 999px; padding: 3px 10px; }
 body:not(.teacher) .teacher-only { display: none !important; }
-#bottom { width: 100%; max-width: 300px; aspect-ratio: 1; display: block; margin: 6px auto 0; border-radius: 10px; background: var(--soft); }
+#bottom, #handleView { width: 100%; max-width: 300px; aspect-ratio: 1; display: block; margin: 6px auto 0; border-radius: 10px; background: var(--soft); }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
 /* pop-up help */
 .rowhead { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
@@ -166,6 +166,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
       <button class="chip" data-preset="ESPRESSO">Espresso cup</button>
       <button class="chip" data-preset="CAPPUCCINO">Cappuccino cup</button>
       <button class="chip" data-preset="TUMBLER">Tumbler</button>
+      <button class="chip" data-preset="MUG">Mug</button>
       <button class="chip" data-preset="BOWL">Bowl</button>
       <button class="chip" data-preset="POURING">Pouring cup</button>
       <button class="chip" data-preset="TEALIGHT">Tealight holder</button>
@@ -281,6 +282,28 @@ body:not(.teacher) .teacher-only { display: none !important; }
         <button class="reset" data-reset="rim">Reset rim</button>
       </details>
 
+      <details class="only-handleable" open>
+        <summary>Handle</summary>
+        <label class="check" data-tipkey="handle"><input type="checkbox" id="handleOn"> Add a handle</label>
+        <div class="only-handle">
+          <p class="note">The piece gets a smooth, flat strip on one side, and the handle gets its own print file. It prints lying flat, so it needs no support, and its two ends are shaped to sit flush on the strip.</p>
+          <div data-num="handle_top" data-label="Top joint below the rim" data-unit="mm" data-min="4" data-max="40" data-step="1"></div>
+          <div data-num="handle_bot" data-label="Bottom joint above the foot" data-unit="mm" data-min="4" data-max="70" data-step="1"></div>
+          <div data-num="handle_reach" data-label="How far it reaches out" data-unit="mm" data-min="15" data-max="55" data-step="1"></div>
+          <div data-num="handle_w" data-label="Handle width" data-unit="mm" data-hint="seen from the front" data-min="8" data-max="24" data-step="1"></div>
+          <div data-num="handle_lines" data-label="Handle thickness" data-unit="lines" data-hint="about 3 mm each" data-min="2" data-max="4" data-step="1"></div>
+          <label class="check" data-tipkey="batch"><input type="checkbox" id="handleBatch"> Print several handles at once</label>
+          <div class="only-batch">
+            <div data-num="handle_n" data-label="Handles in one print file" data-hint="for a class set or spares" data-min="1" data-max="12" data-step="1"></div>
+          </div>
+          <p class="note" id="handleInfo"></p>
+          <canvas id="handleView" width="300" height="300" aria-label="Handle print preview"></canvas>
+          <p class="note">The printer plate, seen from above. The darker ends of each handle are where it joins the piece.</p>
+          <p class="note">New and untested on the printer. Print the piece and the handle the same day so they dry together. When both are leather-hard, score both surfaces, add slip, press the handle onto the flat strip and smooth the seam.</p>
+          <button class="reset" data-reset="handle">Reset handle</button>
+        </div>
+      </details>
+
       <details class="only-stack" open>
         <summary>Stacking</summary>
         <p class="note">The narrow round foot sits down inside the rim of the piece below, so a set stacks like segments of bamboo. The foot follows the rim size, so every piece made with the same settings fits every other.</p>
@@ -349,6 +372,7 @@ body:not(.teacher) .teacher-only { display: none !important; }
       <label class="check" data-tipkey="adaptive">
         <input type="checkbox" id="adaptive"> Adaptive layers <span class="hint">(thinner where the wall flares)</span></label>
       <button class="primary" id="dlG">Save the print file</button>
+      <button class="secondary only-handle" id="dlH">Save the handle print file</button>
       <p class="note" id="saved" aria-live="polite"></p>
       <p class="note machine">Print files from this page are set up only for the <strong>Eazao Potter X-1</strong> clay printer: its 167 mm plate, clay nozzle and settings. Don’t run them on any other printer.</p>
       <button class="secondary teacher-only" id="dlS">Download STL for a plastic printer</button>
@@ -2245,6 +2269,95 @@ var ClayCore = (function () {
       clay_ml: gr[3] * Math.PI * Math.pow(s.FilDia * 0.5, 2) / 1000 };
   }
 
+  // A flat piece printed on its own (a mug handle): the same outline every layer, stacked straight up to
+  // 'height' mm. paths = one layer's paths in printing order, [{ pts: [[x, y], ...], closed: true/false }],
+  // in printed mm. Closed loops start where the last one finished; when the last path is an open stroke it
+  // runs backwards on every other layer, so each layer starts where the one below ended.
+  // opts.copies = [[dx, dy], ...] prints several on one plate. They are built up together, one layer of each
+  // before the next layer of any, so the nozzle is never lower than a finished piece beside it. Every other
+  // layer visits them in reverse order, to keep travel short.
+  // Web only for now (like bead textures): generate() and its output are unchanged.
+  function resample_open_path(pts, spacing) {
+    var acc = [0], i;
+    for (i = 1; i < pts.length; i++) acc.push(acc[i - 1] + hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    var L = acc[acc.length - 1], m = Math.max(2, pyRound(L / spacing)), out = [], j = 0;
+    for (var k = 0; k <= m; k++) {
+      var t = L * k / m;
+      while (j < pts.length - 2 && acc[j + 1] < t) j++;
+      var f = acc[j + 1] - acc[j] < 1e-12 ? 0 : (t - acc[j]) / (acc[j + 1] - acc[j]);
+      out.push([pts[j][0] + f * (pts[j + 1][0] - pts[j][0]), pts[j][1] + f * (pts[j + 1][1] - pts[j][1])]);
+    }
+    return out;
+  }
+  function generate_flat(paths, height, s, opts) {
+    opts = opts || {};
+    var fail = function (msg) { return { gcode: [], moves: [], info: msg, ok: false }; }, warn = [];
+    var good = (paths || []).filter(function (p) { return p.pts && p.pts.length >= 2; });
+    if (!good.length) return fail('Nothing to print.');
+    var nlay = Math.max(1, pyRound(height / s.LayerH));
+    var P0 = good.map(function (p) {
+      var pts = p.closed ? resample_closed(p.pts, s.Spacing) : resample_open_path(p.pts, s.Spacing), sp;
+      if (p.split) {                       // keep track of a marked point (the handle's top joint) after resampling
+        var m = p.pts[p.split], bd = Infinity;
+        pts.forEach(function (q, k) { var d = hyp(q[0] - m[0], q[1] - m[1]); if (d < bd) { bd = d; sp = k; } });
+      }
+      return { closed: !!p.closed, split: sp, pts: pts };
+    });
+    var copies = (opts.copies && opts.copies.length) ? opts.copies : [[0, 0]];
+    var G = copies.map(function (o) {
+      return P0.map(function (p) { return { closed: p.closed, split: p.split, pts: p.pts.map(function (q) { return [q[0] + o[0], q[1] + o[1]]; }) }; });
+    });
+    var allx = [], ally = [];
+    G.forEach(function (P) { P.forEach(function (p) { p.pts.forEach(function (q) { allx.push(q[0]); ally.push(q[1]); }); }); });
+    var mx = minmax(allx), my = minmax(ally);
+    var dx = s.Center ? s.BedX * 0.5 - (mx[0] + mx[1]) * 0.5 : 0, dy = s.Center ? s.BedY * 0.5 - (my[0] + my[1]) * 0.5 : 0;
+    G.forEach(function (P) { P.forEach(function (p) { p.pts = p.pts.map(function (q) { return [q[0] + dx, q[1] + dy]; }); }); });
+    var open = !P0[P0.length - 1].closed, moves = [], i;
+    for (i = 0; i < nlay; i++) {
+      var z = (i + 1) * s.LayerH;
+      moves.push(['layer', i, 0.0, z]);
+      (i % 2 ? G.slice().reverse() : G).forEach(function (P) {
+        var order = P;
+        if (open && i % 2) order = [{ closed: false, pts: P[P.length - 1].pts.slice().reverse() }].concat(P.slice(0, -1));
+        order.forEach(function (p) {
+          moves.push(['travel', p.pts[0][0], p.pts[0][1], z]);
+          (p.closed ? p.pts.slice(1).concat([p.pts[0]]) : p.pts.slice(1)).forEach(function (q) { moves.push(['print', q[0], q[1], z]); });
+        });
+      });
+    }
+    var skirt_note = null;
+    if (s.SkirtLaps > 0) {
+      var hullPts = [];
+      G.forEach(function (P) { P.forEach(function (p) { hullPts = hullPts.concat(p.pts); }); });
+      var sk = priming_loop(hullPts, s);
+      if (sk.ok) {
+        moves.splice.apply(moves, [1, 0].concat(sk.moves));
+        skirt_note = 'Priming loop: ' + sk.laps + ' lap(s) ' + fmt(s.SkirtGap) + ' mm out from the piece - peel it away after printing';
+      } else skirt_note = 'Priming loop skipped: ' + sk.reason;
+    }
+    var bx = minmax(allx.map(function (v) { return v + dx; })), by = minmax(ally.map(function (v) { return v + dy; }));
+    var w = bx[1] - bx[0], dd = by[1] - by[0], zmax = nlay * s.LayerH;
+    var header = (opts.note ? [opts.note] : []).concat(['source: ' + (opts.source || 'flat piece'),
+      'size: ' + fixed(w, 1) + ' x ' + fixed(dd, 1) + ' x ' + fixed(zmax, 1) + ' mm']);
+    var gr = moves_to_gcode(moves, set_mix(opts.start || EAZAO_START, s.Mix), opts.end || EAZAO_END, s, header);
+    if (bx[0] < 0 || bx[1] > s.BedX || by[0] < 0 || by[1] > s.BedY)
+      warn.push('OFF THE BED: X ' + fixed(bx[0], 1) + '..' + fixed(bx[1], 1) + ', Y ' + fixed(by[0], 1) + '..' + fixed(by[1], 1) +
+        ' (bed ' + gfmt(s.BedX) + 'x' + gfmt(s.BedY) + ').');
+    var t_min = (gr[4] + gr[2] / 25.0) / 60.0;
+    var info = ['Size: ' + fixed(w, 1) + ' x ' + fixed(dd, 1) + ' x ' + fixed(zmax, 1) + ' mm (W x D x H), printed lying flat',
+      (G.length > 1 ? G.length + ' pieces, built up together. ' : '') + 'Layers: ' + nlay + ', every one the same: ' +
+        P0.filter(function (p) { return p.closed; }).length + ' loop(s)' + (open ? ' and one middle stroke' : '') + (G.length > 1 ? ' each' : ''),
+      'Clay path: ' + fixed(gr[1] / 1000, 1) + ' m | est. time: ' + fixed(t_min, 0) + ' min'];
+    if (skirt_note) info.push(skirt_note);
+    if (s.FirstSpeed && s.FirstSpeed > 0 && Math.abs(s.FirstSpeed - s.Speed) > 1e-9) info.push('First layer printed at ' + fmt(s.FirstSpeed) + ' mm/s so it settles evenly');
+    info.push('Bed position: X ' + fixed(bx[0], 1) + '..' + fixed(bx[1], 1) + '  Y ' + fixed(by[0], 1) + '..' + fixed(by[1], 1));
+    if (s.Mix !== null) info.push('M163 mix: S0 ' + fmt(s.Mix) + ' / S1 ' + fmt(1 - s.Mix));
+    if (warn.length) { info.push('WARNINGS:'); warn.forEach(function (x) { info.push('- ' + x); }); }
+    else info.push('Checks: OK');
+    return { gcode: gr[0], moves: moves, info: info.join('\n'), ok: true, warnings: warn, size: [w, dd, zmax], layers: nlay, placed: G, count: G.length,
+      minutes: t_min, clay_m: gr[1] / 1000, clay_ml: gr[3] * Math.PI * Math.pow(s.FilDia * 0.5, 2) / 1000 };
+  }
+
   function preview_paths(moves) {
     var out = [], cur = [];
     moves.forEach(function (mv) {
@@ -2256,7 +2369,7 @@ var ClayCore = (function () {
     return out;
   }
 
-  return { VERSION: VERSION, settings: settings, generate: generate, preview_paths: preview_paths, fmt: fmt, fixed: fixed,
+  return { VERSION: VERSION, settings: settings, generate: generate, generate_flat: generate_flat, preview_paths: preview_paths, fmt: fmt, fixed: fixed,
     LoopIndex: LoopIndex, resample_n: resample_n, clean_initials: clean_initials, perimeter: perimeter, signed_area: signed_area };
 })();
 
@@ -2272,10 +2385,12 @@ var ClayShapes = (function () {
   var PRESETS = {
     ESPRESSO: { label: 'Espresso cup', outline: 'CIRCLE', width: 62, height: 55, lobes: 6, lobe_depth: 0.15, twist: 0,
       profile: [[0.0, 0.74, 0.74], [0.3, 0.92, 0.92], [0.65, 1.0, 1.0], [1.0, 1.0, 1.0]],
-      pattern: 'RIBS', depth: 1.0, repeats: 9, pitch: 40, fade_top: 8, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
+      pattern: 'RIBS', depth: 1.0, repeats: 9, pitch: 40, fade_top: 8, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
+      handle: false, handle_top: 10, handle_bot: 12, handle_reach: 22, handle_w: 10, handle_lines: 2 },
     CAPPUCCINO: { label: 'Cappuccino cup', outline: 'CIRCLE', width: 100, height: 65, lobes: 6, lobe_depth: 0.15, twist: 0,
       profile: [[0.0, 0.56, 0.56], [0.22, 0.72, 0.72], [0.5, 0.88, 0.88], [0.8, 0.98, 0.98], [1.0, 1.0, 1.0]],
-      pattern: 'DIAMONDS', depth: 1.2, repeats: 14, pitch: 22, fade_top: 12, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
+      pattern: 'DIAMONDS', depth: 1.2, repeats: 14, pitch: 22, fade_top: 12, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
+      handle: false, handle_top: 12, handle_bot: 14, handle_reach: 28, handle_w: 14, handle_lines: 3 },
     POURING: { label: 'Pouring cup', outline: 'TEARDROP', width: 73, length: 73, tip_width: 26, height: 55, lobes: 6,
       lobe_depth: 0.15, twist: 0,
       profile: [[0.0, 0.74, 0.88], [0.45, 1.0, 1.0], [0.7, 0.98, 0.98], [1.0, 0.92, 0.92]],
@@ -2285,7 +2400,8 @@ var ClayShapes = (function () {
       pattern: 'RIBS', depth: 1.0, repeats: 28, pitch: 40, fade_top: 8, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
     TUMBLER: { label: 'Tumbler', outline: 'CIRCLE', width: 75, height: 95, lobes: 6, lobe_depth: 0.15, twist: 0,
       profile: [[0.0, 0.86, 0.86], [0.5, 0.95, 0.95], [1.0, 1.0, 1.0]],
-      pattern: 'SPIRAL', depth: 1.0, repeats: 12, pitch: 80, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
+      pattern: 'SPIRAL', depth: 1.0, repeats: 12, pitch: 80, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
+      handle: false, handle_top: 16, handle_bot: 25, handle_reach: 30, handle_w: 14, handle_lines: 3 },
     TEALIGHT: { label: 'Tealight holder', outline: 'STAR', width: 75, height: 40, lobes: 8, lobe_depth: 0.14, twist: 30,
       profile: [[0.0, 0.92, 0.92], [0.5, 1.0, 1.0], [1.0, 0.92, 0.92]],
       pattern: 'NONE', depth: 1.0, repeats: 16, pitch: 60, fade_top: 6, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
@@ -2302,6 +2418,12 @@ var ClayShapes = (function () {
       profile: [[0.0, 1.0, 1.0], [0.45, 0.96, 0.96], [0.86, 0.99, 0.99], [0.94, 1.03, 1.03], [1.0, 1.0, 1.0]],
       pattern: 'RIBS', depth: 0.5, repeats: 18, pitch: 60, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
       stack: true, stack_clear: 1.5, stack_depth: 8 },
+    // Mug: a round cup with a flat landing strip on one side for a handle that prints flat on its own
+    // and is joined on with slip. Handle sizes are fired mm (see "handle" in Shape).
+    MUG: { label: 'Mug', outline: 'CIRCLE', width: 82, height: 95, lobes: 6, lobe_depth: 0.15, twist: 0,
+      profile: [[0.0, 0.9, 0.9], [0.3, 0.97, 0.97], [0.75, 1.0, 1.0], [1.0, 0.98, 0.98]],
+      pattern: 'RIBS', depth: 1.0, repeats: 24, pitch: 40, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
+      handle: true, handle_top: 14, handle_bot: 22, handle_reach: 30, handle_w: 14, handle_lines: 3 },
     ORNAMENT: { label: 'Ornament', outline: 'STAR', width: 65, height: 70, lobes: 8, lobe_depth: 0.12, twist: 75,
       profile: [[0.0, 0.58, 0.58], [0.28, 0.88, 0.88], [0.5, 1.0, 1.0], [0.74, 0.86, 0.86], [0.93, 0.52, 0.52], [1.0, 0.40, 0.40]],
       pattern: 'NONE', depth: 1.0, repeats: 10, pitch: 60, fade_top: 6, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 }
@@ -2455,6 +2577,32 @@ var ClayShapes = (function () {
       this.fbOff = zEnd + 1; this.ftOff = seatZ + 1;
       this.ft = Math.max(this.ft, 4); this.fb = Math.max(this.fb, 4);
     }
+    // handle (round pieces only). The wall gets a flat landing strip on its +X side: a straight chord across
+    // the round wall, the handle's width plus 3 mm either side, from just below the bottom joint to just above
+    // the top one, blending back to round over 4 mm. The surface pattern and bead texture fade out around it.
+    // The handle itself prints separately, lying flat: see handle_paths.
+    this.R0 = R; this.handle = null;
+    if (spec.handle && spec.outline === 'CIRCLE' && !this.stack) {
+      var hlw = Math.max(0.5, Number(spec.handle_lw || 2.6)), hn = Math.max(2, Math.min(4, Math.round(Number(spec.handle_lines || 3))));
+      var band = hn * hlw, hw = Math.max(4, Number(spec.handle_w || 14)), reach = Number(spec.handle_reach || 30);
+      var vTop = this.Hb - Number(spec.handle_top || 14), vBot = Number(spec.handle_bot || 20);
+      var ha = reach - band / 2, hb = (vTop - vBot) / 2;
+      if (vBot < 2) throw new Error('The handle\u2019s bottom joint is too close to the foot. Move it up.');
+      if (vTop - vBot < 2 * band + 6) throw new Error('The handle\u2019s joints are too close together. Move the top joint up or the bottom joint down.');
+      if (reach < band + 6) throw new Error('The handle doesn\u2019t reach out far enough for how thick it is. Make it reach further or use fewer lines.');
+      // the inside edge of the handle folds over itself where the curve is tighter than half the handle's thickness:
+      // at the joints when it is tall and short-reaching, at the far end when it is squat and long-reaching
+      if (band / 2 > 0.8 * ha * ha / hb)
+        throw new Error('The handle curves too tightly where it meets the wall. Make it reach further, move the joints closer together, or use fewer lines.');
+      if (band / 2 > 0.8 * hb * hb / ha)
+        throw new Error('The handle curves too tightly at its far end. Make it reach less far, move the joints further apart, or use fewer lines.');
+      var rMin = Infinity;
+      for (var hz = vBot - band; hz <= vTop + band; hz += 1) rMin = Math.min(rMin, R * this.sx(Math.max(0, Math.min(1, hz / this.Hb))));
+      if (hw / 2 + 3 > rMin * 0.6) throw new Error('The handle is too wide for this piece. Make the handle narrower or the piece wider.');
+      this.handle = { lw: hlw, lines: hn, band: band, width: hw, reach: reach, top: vTop, bot: vBot,
+        half: hw / 2 + 3, z0: vBot - band / 2 - 3, z1: vTop + band / 2 + 3, tr: 4,
+        gripW: reach - band, gripH: vTop - vBot - band };
+    }
     this.plane = null;
     // wavy rim: wave_n high points around, dipping wave_d mm between them; the first high point
     // sits at the front and turns with the twist so it stays on the same flute
@@ -2495,7 +2643,7 @@ var ClayShapes = (function () {
   };
   Shape.prototype.point = function (i, z, textured, inset) {
     if (textured === undefined) textured = true;
-    var sm = this._smooth(i, z, inset || 0), x = sm[0], y = sm[1];
+    var sm = this._smooth(i, z, inset || 0), x = sm[0], y = sm[1], hz = this.handle ? this._hz(z) : 0;
     if (textured && this.pattern !== 'NONE' && this.A) {
       var d = pattern_value(this.pattern, this.A, this.R, this.P, i / this.n, z), f = 1;
       if (this.ft > 0) {
@@ -2503,9 +2651,100 @@ var ClayShapes = (function () {
         f *= smoothstep((this._rim[i] - z - this.ftOff) / this.ft);
       }
       if (this.fb > 0) f *= smoothstep((z - this.fbOff) / this.fb);
+      if (hz > 0) f *= this._quiet(Math.atan2(sm[1], sm[0]), z, hz);
       x += sm[2] * d * f; y += sm[3] * d * f;
     }
+    if (hz > 0) { var dF = this.face(z) - (inset || 0); if (x > dF) x = dF; }     // the flat landing strip
     return [x, y];
+  };
+  // handle flat: how fully it is cut at height z (0 = round, 1 = full flat)
+  Shape.prototype._hz = function (z) {
+    var h = this.handle;
+    return smoothstep((z - h.z0 + h.tr) / h.tr) * smoothstep((h.z1 + h.tr - z) / h.tr);
+  };
+  // distance from the centre to the flat face at height z (on the outside of the wall)
+  Shape.prototype.face = function (z) {
+    var Rl = this.R0 * this.sx(Math.max(0, Math.min(1, z / this.Hb))), hw = this.handle.half * this._hz(z);
+    return Math.sqrt(Math.max(0, Rl * Rl - hw * hw));
+  };
+  // how much texture to keep at angle a (0 = the middle of the flat): none on the flat, back to full 8 mm past its edge
+  Shape.prototype._quiet = function (a, z, hz) {
+    var Rl = this.R0 * this.sx(Math.max(0, Math.min(1, z / this.Hb))), aF = Math.asin(Math.min(1, this.handle.half / Rl));
+    return 1 - hz * (1 - smoothstep((Math.abs(a) - aF) / (8 / Rl)));
+  };
+  // the same for the bead texture, which only knows how far round the loop it is (0-1, starting at the front)
+  Shape.prototype.handle_quiet = function (sFrac, z) {
+    if (!this.handle) return 1;
+    var hz = this._hz(z); if (hz <= 0) return 1;
+    var a = -Math.PI / 2 + 2 * Math.PI * sFrac; a = Math.atan2(Math.sin(a), Math.cos(a));
+    return this._quiet(a, z, hz);
+  };
+
+  // The handle's centre line is half an ellipse in the plane through the middle of the flat:
+  // u = how far out from the flat face, v = height up the piece. Both ends meet the face square-on, so each
+  // joint is a flat pad. o = offset from the centre line (+ is the outside of the handle). Returns the part
+  // at least umin out from the face, bottom joint first.
+  Shape.prototype._handle_edge = function (o, umin, m) {
+    var h = this.handle, a = h.reach - h.band / 2, b = (h.top - h.bot) / 2, vm = (h.top + h.bot) / 2, raw = [], j, q, t;
+    for (j = 0; j <= m; j++) {
+      var th = -Math.PI / 2 + Math.PI * j / m, c = Math.cos(th), sn = Math.sin(th), nx = b * c, ny = a * sn, L = hyp(nx, ny) || 1;
+      raw.push([Math.max(0, a * c) + o * nx / L, vm + b * sn + o * ny / L]);
+    }
+    var out = [];
+    for (j = 0; j <= m; j++) {
+      var p = raw[j];
+      if (p[0] >= umin) {
+        if (!out.length && j > 0) { q = raw[j - 1]; t = (umin - q[0]) / (p[0] - q[0]); out.push([umin, q[1] + t * (p[1] - q[1])]); }
+        out.push(p);
+      } else if (out.length) { q = raw[j - 1]; t = (umin - q[0]) / (p[0] - q[0]); out.push([umin, q[1] + t * (p[1] - q[1])]); break; }
+    }
+    return out;
+  };
+  function resample_open(pts, m) {
+    var acc = [0], i;
+    for (i = 1; i < pts.length; i++) acc.push(acc[i - 1] + hyp(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+    var L = acc[acc.length - 1], out = [], j = 0;
+    for (var k = 0; k <= m; k++) {
+      var tt = L * k / m;
+      while (j < pts.length - 2 && acc[j + 1] < tt) j++;
+      var f = acc[j + 1] - acc[j] < 1e-12 ? 0 : (tt - acc[j]) / (acc[j + 1] - acc[j]);
+      out.push([pts[j][0] + f * (pts[j + 1][0] - pts[j][0]), pts[j][1] + f * (pts[j + 1][1] - pts[j][1])]);
+    }
+    return out;
+  }
+  // The handle as it sits on the piece (for the 3D view): a closed band of clay, the handle's width across.
+  Shape.prototype.handle_mesh = function (k) {
+    var h = this.handle; if (!h) return null;
+    k = k || 1;
+    var m = 120, self = this, hw = h.width / 2, verts = [], faces = [], i;
+    var outer = resample_open(this._handle_edge(h.band / 2, 0, 480), m), inner = resample_open(this._handle_edge(-h.band / 2, 0, 480), m);
+    function V(p, y) { verts.push([(self.face(p[1]) + p[0]) * k, y * k, p[1] * k]); }
+    for (i = 0; i <= m; i++) { V(outer[i], hw); V(outer[i], -hw); V(inner[i], hw); V(inner[i], -hw); }
+    for (i = 0; i < m; i++) {
+      var a = 4 * i, b = 4 * (i + 1);
+      faces.push([a, b, b + 2, a + 2]);           // front face
+      faces.push([a + 1, a + 3, b + 3, b + 1]);   // back face
+      faces.push([a, a + 1, b + 1, b]);           // outside of the handle
+      faces.push([a + 2, b + 2, b + 3, a + 3]);   // inside (finger side)
+    }
+    faces.push([0, 2, 3, 1]); faces.push([4 * m, 4 * m + 1, 4 * m + 3, 4 * m + 2]);    // the two joint pads
+    return { verts: verts, faces: faces };
+  };
+  // The handle's print paths for one layer, lying flat on the plate, in printed (wet) mm: X = out from the
+  // flat face, Y = up the piece. The joint ends follow the flat face's line, so they match the piece even
+  // where its wall leans. Each pair of lines (outside and inside) is one closed loop whose ends run along
+  // the joints; an odd middle line is printed as a single stroke. The ends stop half a line short of the
+  // face, so the clay comes out flush with it.
+  Shape.prototype.handle_paths = function (k) {
+    var h = this.handle; if (!h) return null;
+    var lw = h.lw, n = h.lines, vm = (h.top + h.bot) / 2, f0 = this.face(vm), self = this, paths = [];
+    function edge(j) {
+      return self._handle_edge((j - (n - 1) / 2) * lw, lw / 2, 480)
+        .map(function (p) { return [(self.face(p[1]) - f0 + p[0]) * k, (p[1] - vm) * k]; });
+    }
+    for (var j = 0; j < n - 1 - j; j++) { var hi = edge(n - 1 - j); paths.push({ closed: true, split: hi.length, pts: hi.concat(edge(j).reverse()) }); }
+    if (n % 2) paths.push({ closed: false, pts: edge((n - 1) / 2) });
+    return paths;
   };
   Shape.prototype.ring = function (z) { var o = []; for (var i = 0; i < this.n; i++) o.push(this.point(i, z)); return o; };
   Shape.prototype.clay_slicer = function (k) {
@@ -2626,10 +2865,16 @@ var ClayShapes = (function () {
   var CUP_TEX = ['NONE', 'RIBS', 'SPIRAL', 'DIAMONDS', 'BUBBLES'];
   // Each range was checked at its corners with every allowed pattern at its deepest setting.
   // aspect = the lowest height allowed, as a fraction of the width (wide + short = too steep).
+  // handle: the shape can take a handle. Handle ranges are set so the finger opening stays usable.
   var LIMITS = {
-    ESPRESSO: { width: [55, 75], height: [45, 70], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20] },
-    CAPPUCCINO: { width: [85, 115], height: [55, 80], aspect: 0.6, patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20], pitch_d: 20 },
-    TUMBLER: { width: [65, 85], height: [80, 110], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20] },
+    ESPRESSO: { width: [55, 75], height: [45, 70], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20],
+      handle: true, handle_top: [6, 10], handle_bot: [8, 12], handle_reach: [22, 30], handle_w: [8, 12], handle_lines: [2, 3] },
+    CAPPUCCINO: { width: [85, 115], height: [55, 80], aspect: 0.6, patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20], pitch_d: 20,
+      handle: true, handle_top: [8, 14], handle_bot: [10, 16], handle_reach: [26, 32], handle_w: [10, 18], handle_lines: [2, 3] },
+    TUMBLER: { width: [65, 85], height: [80, 110], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20],
+      handle: true, handle_top: [8, 22], handle_bot: [12, 30], handle_reach: [27, 34], handle_w: [10, 18], handle_lines: [2, 4] },
+    MUG: { width: [70, 95], height: [80, 115], patterns: CUP_TEX, rims: ['FLAT'], fade_top: [8, 20],
+      handle: true, handle_top: [8, 22], handle_bot: [12, 30], handle_reach: [27, 34], handle_w: [10, 18], handle_lines: [2, 4] },
     BOWL: { width: [85, 125], height: [30, 50], aspect: 0.4, patterns: CUP_TEX, rims: ['FLAT', 'WAVE'], depth: [0.5, 1.0], fade_bottom: [10, 20], pitch_d: 22,
       wave_n: [2, 6], wave_d: [4, 10] },
     POURING: { width: [60, 78], height: [48, 62], length: [55, 80], tip_width: [20, 30], patterns: ['NONE', 'RIBS', 'DIAMONDS', 'BUBBLES'],
@@ -2645,6 +2890,12 @@ var ClayShapes = (function () {
     ORNAMENT: { width: [60, 75], height: [62, 85], aspect: 1.05, lobes: [6, 10], lobe_depth: [0.06, 0.15], twist: [-60, 60],
       patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [5, 10], depth: [0.5, 0.8] }
   };
+  var HANDLE_DEFAULTS = { handle: false, handle_top: 14, handle_bot: 20, handle_reach: 30, handle_w: 14, handle_lines: 3, handle_n: 1, handle_batch: false };
+  // can this piece take a handle? Students: the shapes marked in LIMITS. Teachers: any round piece that doesn't stack.
+  function handleCount() { return state.handle_batch ? Math.max(1, Math.round(state.handle_n || 1)) : 1; }   // batches are opt-in
+  function handleable() {
+    return state.outline === 'CIRCLE' && !state.stack && (TEACHER || !!(LIMITS[presetKey] || {}).handle);
+  }
   var STUDENT_COMMON = { depth: [0.5, 1.2], fade_bottom: [8, 20], fade_top: [0, 20], LayerH: [1, 1], bead_amt: [10, 30] };
   var origRange = {};
 
@@ -2654,7 +2905,7 @@ var ClayShapes = (function () {
     var p = clone(S.PRESETS[key]), keep = {};
     Object.keys(CLAY_DEFAULTS).forEach(function (k) { keep[k] = (k in state) ? state[k] : CLAY_DEFAULTS[k]; });
     state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16,
-      stack: false, stack_clear: 1.5, stack_depth: 8 }, p, keep);
+      stack: false, stack_clear: 1.5, stack_depth: 8 }, HANDLE_DEFAULTS, p, keep);
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === key); });
     applyLimits(); syncAll(); changed(true);
   }
@@ -2742,6 +2993,7 @@ var ClayShapes = (function () {
     });
     document.getElementById('rimNote').textContent = rimOff ? 'Greyed-out rims come on other shapes. Hover over or tap one to see which.' : '';
     if (rims.indexOf(state.rim) < 0) state.rim = rims[0];
+    if (!handleable()) state.handle = false;
     if (TEACHER) return;
     Object.keys(STUDENT_COMMON).forEach(function (k) { setRange(k, STUDENT_COMMON[k][0], STUDENT_COMMON[k][1]); });
     Object.keys(L).forEach(function (k) { if (Array.isArray(L[k]) && typeof L[k][0] === 'number') setRange(k, L[k][0], L[k][1]); });
@@ -2766,6 +3018,8 @@ var ClayShapes = (function () {
   }
   segBind('outline', 'outline'); segBind('rim', 'rim'); segBind('fdm', 'fdm'); segBind('viewmode', 'view'); segBind('bead', 'bead');
   document.getElementById('adaptive').addEventListener('change', function (e) { state.adaptive = e.target.checked; changed(); });
+  document.getElementById('handleOn').addEventListener('change', function (e) { state.handle = e.target.checked; changed(); });
+  document.getElementById('handleBatch').addEventListener('change', function (e) { state.handle_batch = e.target.checked; changed(); });
   document.getElementById('pattern').addEventListener('change', function (e) { state.pattern = e.target.value; applyLimits(); syncAll(); changed(); });
   document.getElementById('initials').addEventListener('input', function (e) {
     var v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
@@ -2922,6 +3176,7 @@ var ClayShapes = (function () {
     vis('.only-fade', state.pattern !== 'NONE' || (state.bead && state.bead !== 'STEADY'));
     vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS'].indexOf(state.pattern) >= 0);
     vis('.only-stack', !!state.stack);
+    vis('.only-handleable', handleable()); vis('.only-handle', handleable() && !!state.handle); vis('.only-batch', !!state.handle_batch);
     vis('.only-sloped', state.rim === 'SLOPED'); vis('.only-tabs', state.rim === 'TABS'); vis('.only-wave', state.rim === 'WAVE'); vis('.only-walled', state.fdm === 'WALLED');
   }
   function syncAll() {
@@ -2932,6 +3187,8 @@ var ClayShapes = (function () {
     document.getElementById('pattern').value = state.pattern;
     document.getElementById('Spiral').checked = !!state.Spiral;
     document.getElementById('adaptive').checked = state.adaptive !== false;
+    document.getElementById('handleOn').checked = !!state.handle;
+    document.getElementById('handleBatch').checked = !!state.handle_batch;
     document.getElementById('initials').value = state.initials || '';
     drawProfile();
   }
@@ -2958,6 +3215,7 @@ var ClayShapes = (function () {
   var rim = new THREE.DirectionalLight(0xffffff, 0.35); rim.position.set(0, 250, -200); scene.add(rim);
   var bedGroup = new THREE.Group(); scene.add(bedGroup);
   var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
+  var handleMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
   // "Watch it print" in the Both view: every point of the piece knows when the nozzle reaches it (printT,
   // from the nearest point on the real toolpath), and the piece shows only what has been printed so far.
   // This follows tilted (non-planar) layers too, which a flat cutting plane can't.
@@ -2969,12 +3227,12 @@ var ClayShapes = (function () {
     sh.fragmentShader = 'uniform float uPrintT;\nvarying float vPrintT;\n' +
       sh.fragmentShader.replace('void main() {', 'void main() {\n  if (vPrintT > uPrintT) discard;');
   };
-  var pieceMesh = null, pathLines = null, overPts = null, wireLines = null;
+  var pieceMesh = null, pathLines = null, overPts = null, wireLines = null, handleMesh = null, handleWire = null, pieceOff = [0, 0];
 
   function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function themeColors() {
     renderer.setClearColor(new THREE.Color(cssColor('--view')));
-    pieceMat.color = new THREE.Color(cssColor('--piece'));
+    pieceMat.color = new THREE.Color(cssColor('--piece')); handleMat.color = new THREE.Color(cssColor('--piece'));
     while (bedGroup.children.length) bedGroup.remove(bedGroup.children[0]);
     var grid = new THREE.GridHelper(167, 16, new THREE.Color(cssColor('--bed')), new THREE.Color(cssColor('--line')));
     bedGroup.add(grid);
@@ -3000,6 +3258,7 @@ var ClayShapes = (function () {
     var pos = new Float32Array(mesh.verts.length * 3), idx = [], x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     mesh.verts.forEach(function (v) { if (v[0] < x0) x0 = v[0]; if (v[0] > x1) x1 = v[0]; if (v[1] < y0) y0 = v[1]; if (v[1] > y1) y1 = v[1]; });
     var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;      // centred on the bed, like the G-code
+    pieceOff = [cx, cy];
     mesh.verts.forEach(function (v, i) { var t = toThree(v[0] - cx, v[1] - cy, v[2]); pos[i * 3] = t[0]; pos[i * 3 + 1] = t[1]; pos[i * 3 + 2] = t[2]; });
     mesh.faces.forEach(function (f) { for (var k = 1; k < f.length - 1; k++) idx.push(f[0], f[k], f[k + 1]); });
     var g = new THREE.BufferGeometry();
@@ -3022,6 +3281,27 @@ var ClayShapes = (function () {
     var wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wp, 3));
     wireLines = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: new THREE.Color(cssColor('--glaze')) }));
     scene.add(wireLines);
+  }
+  // the handle, drawn where it will be joined on (it prints separately, so it isn't part of the nozzle path)
+  function setHandle(mesh) {
+    if (handleMesh) { scene.remove(handleMesh); handleMesh.geometry.dispose(); handleMesh = null; }
+    if (handleWire) { scene.remove(handleWire); handleWire.geometry.dispose(); handleWire = null; }
+    if (!mesh) return;
+    var pos = [];
+    mesh.faces.forEach(function (f) {
+      for (var q = 1; q < f.length - 1; q++) [f[0], f[q], f[q + 1]].forEach(function (vi) {
+        var v = mesh.verts[vi], t = toThree(v[0] - pieceOff[0], v[1] - pieceOff[1], v[2]); pos.push(t[0], t[1], t[2]);
+      });
+    });
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+    handleMesh = new THREE.Mesh(g, handleMat); scene.add(handleMesh);
+    handleWire = new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), new THREE.LineBasicMaterial({ color: new THREE.Color(cssColor('--glaze')) }));
+    scene.add(handleWire);
+  }
+  function handleVis() {
+    var v = state.view || 'SHAPE', growing = anim.frac < 1 && v === 'BOTH';
+    if (handleMesh) handleMesh.visible = (v === 'SHAPE' || v === 'BOTH') && !growing;
+    if (handleWire) handleWire.visible = v === 'WIRE';
   }
   function setPath(res) {
     if (pathLines) { scene.remove(pathLines); pathLines.geometry.dispose(); pathLines = null; }
@@ -3082,6 +3362,7 @@ var ClayShapes = (function () {
     var growing = anim.frac < 1 && state.view === 'BOTH';
     if (growing) ensurePrintTimes();
     printT.value = growing ? anim.times[Math.max(0, shown - 1)] : 1e9;
+    handleVis();
     info.textContent = anim.frac >= 1 ? 'Finished: ' + fmtMin(anim.total) :
       'Layer ' + (anim.layers[Math.max(0, shown - 1)] + 1) + ' of ' + anim.nLayers + ' \u00b7 ' + fmtMin(tNow) + ' of ' + fmtMin(anim.total);
     render();
@@ -3147,6 +3428,7 @@ var ClayShapes = (function () {
     if (wireLines) wireLines.visible = v === 'WIRE';
     if (pathLines) pathLines.visible = v === 'PATH' || v === 'BOTH';
     if (overPts) overPts.visible = true;
+    handleVis();
     nozzle.visible = !!pathLines && pathLines.visible && anim.frac < 1;
     if (anim.frac < 1 && pathLines) { showProgress(anim.frac); return; }   // sets how much of the piece shows
     printT.value = 1e9;
@@ -3160,7 +3442,9 @@ var ClayShapes = (function () {
       lobes: state.lobes, lobe_depth: state.lobe_depth, twist: state.twist, profile: state.profile, pattern: state.pattern,
       depth: state.depth, repeats: state.repeats, pitch: state.pitch, fade_top: state.fade_top, fade_bottom: state.fade_bottom,
       rim: state.rim, tilt: state.tilt, drop: state.drop, tab_h: state.tab_h, wave_n: state.wave_n, wave_d: state.wave_d,
-      stack: !!state.stack, stack_clear: state.stack_clear, stack_depth: state.stack_depth, stack_lw: state.LineW / k() };
+      stack: !!state.stack, stack_clear: state.stack_clear, stack_depth: state.stack_depth, stack_lw: state.LineW / k(),
+      handle: !!state.handle && handleable(), handle_top: state.handle_top, handle_bot: state.handle_bot, handle_reach: state.handle_reach,
+      handle_w: state.handle_w, handle_lines: state.handle_lines, handle_lw: state.LineW / k() };
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.BaseLayers,
@@ -3182,6 +3466,7 @@ var ClayShapes = (function () {
       var m = 1;
       if (ft > 0) m *= smooth01((toRim - ftOff) / ft);
       if (fb > 0) m *= smooth01((z - fbOff) / fb);
+      if (sh && sh.handle) m *= sh.handle_quiet(sf, z / K);          // keep the handle's flat strip smooth
       return 1 + A * m * Math.sin(2 * Math.PI * ph);
     };
   }
@@ -3239,14 +3524,19 @@ var ClayShapes = (function () {
     pattern: ['pattern', 'depth', 'repeats', 'pitch', 'fade_top', 'fade_bottom'],
     rim: ['rim', 'tilt', 'drop', 'tab_h', 'wave_n', 'wave_d'],
     bead: ['bead', 'bead_amt', 'bead_n'],
-    stack: ['stack_clear', 'stack_depth']
+    stack: ['stack_clear', 'stack_depth'],
+    handle: ['handle_top', 'handle_bot', 'handle_reach', 'handle_w', 'handle_lines', 'handle_n', 'handle_batch']
   };
   document.querySelectorAll('[data-reset]').forEach(function (b) {
     b.addEventListener('click', function () {
       var which = b.dataset.reset, p = clone(S.PRESETS[presetKey]);
       var beadDefaults = { bead: 'STEADY', bead_amt: 25, bead_n: 16 };
       if (which === 'initials') state.initials = '';
-      else RESET_KEYS[which].forEach(function (k) { if (p[k] !== undefined) state[k] = p[k]; else if (beadDefaults[k] !== undefined) state[k] = beadDefaults[k]; });
+      else RESET_KEYS[which].forEach(function (k) {
+        if (p[k] !== undefined) state[k] = p[k];
+        else if (beadDefaults[k] !== undefined) state[k] = beadDefaults[k];
+        else if (HANDLE_DEFAULTS[k] !== undefined) state[k] = HANDLE_DEFAULTS[k];
+      });
       selDot = -1; applyLimits(); syncAll(); changed(); updDotBtn();
     });
   });
@@ -3289,6 +3579,7 @@ var ClayShapes = (function () {
         }
       }
       setPiece(skin);
+      setHandle(sh.handle ? sh.handle_mesh(K) : null);
       if (dragging < 0) drawSilhouette();
       var f = function (v) { return Math.round(v); };
       var si = document.getElementById('stackInfo');
@@ -3304,7 +3595,7 @@ var ClayShapes = (function () {
     } catch (e) { setStatus({ ok: false, info: e.message }); }
   }
   function slice() {
-    var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n]);
+    var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n, handleCount()]);
     try {
       var sh = new S.Shape(spec(), 400), K = k();
       lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(sh),
@@ -3313,10 +3604,96 @@ var ClayShapes = (function () {
       lastKey = key;
       if (lastRes.ok && sh.stack && !sh.stack.ok) (lastRes.warnings = lastRes.warnings || []).push('STACK: shoulder too narrow');
       setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes);
+      sliceHandle(sh, K);
       var mi = lastRes.ok ? lastRes.max_initials : 0;
       document.getElementById('initFit').textContent = mi ? 'This base has room for up to ' + mi + ' letter' + (mi > 1 ? 's' : '') + '.' :
         'This base is too small for initials.';
-    } catch (e) { lastRes = null; setStatus({ ok: false, info: e.message }); }
+    } catch (e) { lastRes = null; lastHandle = null; showHandle(); setStatus({ ok: false, info: e.message }); }
+  }
+  // ---------- handle ----------
+  var lastHandle = null, handlePaths = null;
+  // Several handles on one plate: a grid, turned 90 degrees if that fits more, with room left round the edge
+  // for the priming loop. Limited to what one barrel of clay can print.
+  var HANDLE_GAP = 6, handleMax = 1;
+  function handleLayout(paths, n) {
+    var xs = [], ys = [], lw = state.LineW;
+    paths.forEach(function (p) { p.pts.forEach(function (q) { xs.push(q[0]); ys.push(q[1]); }); });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    var w = x1 - x0 + lw, h = y1 - y0 + lw, edge = (state.SkirtLaps > 0 ? 5 + lw * state.SkirtLaps : 0) + 2, U = 167 - 2 * edge;
+    function fit(a, b) { return [Math.max(1, Math.floor((U + HANDLE_GAP) / (a + HANDLE_GAP))), Math.max(1, Math.floor((U + HANDLE_GAP) / (b + HANDLE_GAP)))]; }
+    var A = fit(w, h), B = fit(h, w), rot = B[0] * B[1] > A[0] * A[1], g = rot ? B : A;
+    var cw = rot ? h : w, ch = rot ? w : h, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    var out = paths.map(function (p) {
+      return { closed: p.closed, split: p.split, pts: p.pts.map(function (q) { var x = q[0] - cx, y = q[1] - cy; return rot ? [-y, x] : [x, y]; }) };
+    });
+    n = Math.max(1, Math.min(n, g[0] * g[1]));
+    var cols = Math.min(n, g[0]), rows = Math.ceil(n / g[0]), offs = [];
+    for (var k = 0; k < n; k++) {
+      var r = Math.floor(k / g[0]), c = k % g[0];
+      if (r % 2) c = cols - 1 - c;                      // snake back along the next row
+      offs.push([(c - (cols - 1) / 2) * (cw + HANDLE_GAP), (r - (rows - 1) / 2) * (ch + HANDLE_GAP)]);
+    }
+    return { paths: out, copies: offs, max: g[0] * g[1] };
+  }
+  function sliceHandle(sh, K) {
+    handlePaths = sh.handle ? sh.handle_paths(K) : null;
+    lastHandle = null;
+    if (handlePaths) {
+      var opts = { note: 'FOR THE EAZAO POTTER X-1 CLAY PRINTER ONLY - do not run this file on any other printer',
+        source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') + ' - handle, printed lying flat' };
+      var one = C.generate_flat(handlePaths, sh.handle.width * K, clayS(), opts);
+      var lay = handleLayout(handlePaths, 99);
+      handleMax = Math.max(1, Math.min(lay.max, Math.floor(BARREL_ML / Math.max(1, one.clay_ml || 1))));
+      setRange('handle_n', 1, handleMax);
+      if (numEls.handle_n) { numEls.handle_n[0].value = state.handle_n; numEls.handle_n[1].value = state.handle_n; }
+      if (handleCount() > 1) {
+        lay = handleLayout(handlePaths, handleCount());
+        opts.source = opts.source.replace('handle,', handleCount() + ' handles,');
+        lastHandle = C.generate_flat(lay.paths, sh.handle.width * K, clayS(), Object.assign(opts, { copies: lay.copies }));
+      } else lastHandle = one;
+      lastHandle.shape = sh.handle; lastHandle.one = one;
+    }
+    showHandle();
+  }
+  function showHandle() {
+    var info = document.getElementById('handleInfo'), btn = document.getElementById('dlH'), r = lastHandle;
+    btn.disabled = !r || !r.ok || blocked(lastRes) || (!TEACHER && (r.warnings || []).length > 0);
+    drawHandle();
+    if (!r) { info.textContent = ''; return; }
+    if (!r.ok) { info.textContent = r.info; return; }
+    var h = r.shape, f0 = function (v) { return Math.round(v); }, fingers = Math.floor(h.gripH / 20);
+    info.innerHTML = 'After firing, the finger opening is about <strong>' + f0(h.gripW) + ' \u00d7 ' + f0(h.gripH) + ' mm</strong>' +
+      (h.gripW < 16 ? ': tight even for one finger.' : (fingers >= 2 ? ', room for ' + Math.min(fingers, 4) + ' fingers.' : ', room for one finger.')) +
+      ' The flat strip is ' + f0(2 * h.half) + ' mm wide. ' + (r.count > 1 ? r.count + ' handles' : 'Handle') + ' print: about <strong>' +
+      Math.max(1, Math.round(r.minutes)) + ' min</strong> and <strong>' + Math.round(r.clay_ml) + ' ml</strong> of clay, ' + r.layers + ' layers.' +
+      (state.handle_batch ? ' Up to ' + handleMax + ' fit on one plate.' : '') +
+      ((r.warnings || []).length ? ' ' + r.warnings.map(plain).join(' ') : '');
+  }
+  function drawHandle() {
+    var cv = document.getElementById('handleView'); if (!cv || !cv.getContext) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2), W = cv.clientWidth || 300;
+    cv.width = W * dpr; cv.height = W * dpr;
+    var g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, W);
+    if (!handlePaths || !lastHandle || !lastHandle.ok) return;
+    // the whole 167 mm plate, so you can see how much room the handles take
+    var sc = (W - 8) / 167, X = function (v) { return 4 + v * sc; }, Y = function (v) { return W - 4 - v * sc; };
+    g.strokeStyle = cssColor('--line'); g.lineWidth = 1; g.strokeRect(X(0), Y(167), 167 * sc, 167 * sc);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    lastHandle.placed.forEach(function (P) {
+      g.strokeStyle = cssColor('--piece'); g.lineWidth = state.LineW * sc;
+      P.forEach(function (p) {
+        g.beginPath();
+        p.pts.forEach(function (q, i) { if (i) g.lineTo(X(q[0]), Y(q[1])); else g.moveTo(X(q[0]), Y(q[1])); });
+        if (p.closed) g.closePath();
+        g.stroke();
+      });
+      // the joint pads: where the first loop's ends meet (outside and inside edge), marked in the glaze colour
+      var o = P[0].pts, n = o.length, sp = P[0].split || Math.floor(n / 2);
+      g.strokeStyle = cssColor('--glaze'); g.lineWidth = Math.max(2, state.LineW * sc * 0.8); g.lineCap = 'butt';
+      [[o[0], o[n - 1]], [o[Math.max(1, sp) - 1], o[Math.min(n - 1, sp)]]].forEach(function (e) {
+        g.beginPath(); g.moveTo(X(e[0][0]), Y(e[0][1])); g.lineTo(X(e[1][0]), Y(e[1][1])); g.stroke();
+      });
+    });
   }
   function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
   var BARREL_ML = 400;     // a 500 ml barrel filled about 80%
@@ -3396,10 +3773,18 @@ var ClayShapes = (function () {
   }
   function fileBase() { return (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : 'clay').toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
   document.getElementById('dlG').addEventListener('click', function () {
-    if (JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n]) !== lastKey) { clearTimeout(tSlice); slice(); }
+    if (JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n, handleCount()]) !== lastKey) { clearTimeout(tSlice); slice(); }
     if (!lastRes || !lastRes.ok || blocked(lastRes)) { alert('This shape can’t be printed yet — see the message under the picture.'); return; }
     download(fileBase() + '.gcode', lastRes.gcode.join('\n') + '\n', 'text/plain');
-    document.getElementById('saved').textContent = 'Saved ' + fileBase() + '.gcode to your Downloads folder. Next: copy it to the printer\u2019s SD card (see “From file to finished piece”).';
+    document.getElementById('saved').textContent = 'Saved ' + fileBase() + '.gcode to your Downloads folder. Next: copy it to the printer\u2019s SD card (see “From file to finished piece”).' +
+      (lastHandle && lastHandle.ok ? ' Save the handle print file too: it prints separately.' : '');
+  });
+  document.getElementById('dlH').addEventListener('click', function () {
+    if (JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n, handleCount()]) !== lastKey) { clearTimeout(tSlice); slice(); }
+    if (!lastHandle || !lastHandle.ok || blocked(lastRes)) { alert('The handle can\u2019t be printed yet: see the message under the picture.'); return; }
+    var hname = fileBase() + (lastHandle.count > 1 ? '_handles_x' + lastHandle.count : '_handle') + '.gcode';
+    download(hname, lastHandle.gcode.join('\n') + '\n', 'text/plain');
+    document.getElementById('saved').textContent = 'Saved ' + hname + ' to your Downloads folder. It prints separately from the piece.';
   });
   document.getElementById('dlS').addEventListener('click', function () {
     try {
@@ -3437,6 +3822,12 @@ var ClayShapes = (function () {
       tab_h: 'How tall the two hanger tabs stand above the rim.',
       stack_clear: 'How much room there is around the foot when it sits in the rim below. More gap fits more easily; less gap wobbles less. If your test pieces jam, add gap; if they rattle, take some away.',
       stack_depth: 'How tall the narrow foot is before the wall flares out. A deeper foot sits further down into the piece below, which leaves less room for wax in that piece.',
+      handle_top: 'How far below the rim the top of the handle joins the wall, measured to the middle of the joint.',
+      handle_bot: 'How far above the foot the bottom of the handle joins the wall, measured to the middle of the joint.',
+      handle_reach: 'How far the handle sticks out from the wall. The finger opening is this less the handle\u2019s thickness.',
+      handle_w: 'How wide the handle looks from the front. The flat strip on the piece is 6 mm wider than this, so there\u2019s room to smooth the slip joint.',
+      handle_n: 'Prints several copies of this handle on one plate, built up together layer by layer. Handy for a class making the same mug, or for spares. The most that fit depends on the handle\u2019s size.',
+      handle_lines: 'How thick the handle is from its inside edge to its outside edge, counted in lines of clay (each about 3 mm wet). More lines make a sturdier handle and a smaller finger opening.',
       shrink: 'How much this clay shrinks from wet to fired. The piece is printed this much bigger so the fired size matches.',
       LayerH: 'How thick each layer of clay is. Thinner layers look smoother and cope with steeper leans, but take longer.',
       LineW: 'How wide each printed line of clay is. Keep it close to the nozzle size.',
@@ -3479,7 +3870,9 @@ var ClayShapes = (function () {
       BANDS: 'rings around the piece', BUBBLES: 'rows of round bumps', DIAMONDS: 'a criss-cross of raised diamonds',
       SCALLOPS: 'rounded flutes running up the wall'
     },
-    adaptive: 'Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer to print.'
+    adaptive: 'Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer to print.',
+    batch: 'Puts several copies of this handle in one print file, built up together layer by layer, so one plate makes a class set or spares. Off unless you turn it on, so a normal print is one handle.',
+    handle: 'Adds a flat, smooth strip to one side of the piece and makes a handle to fit it, with its own print file. The handle prints lying flat, and you join it on with slip when both are leather-hard.'
   };
   var PATTERN_NAMES = { NONE: 'Smooth', RIBS: 'Vertical ribs', SPIRAL: 'Spiral ribs', BANDS: 'Bands', BUBBLES: 'Bubbles', DIAMONDS: 'Diamonds', SCALLOPS: 'Scalloped flutes' };
   var RIM_NAMES = { FLAT: 'Flat', WAVE: 'Wavy', SLOPED: 'Sloped', TABS: 'Hanger tab' };
@@ -3528,6 +3921,8 @@ var ClayShapes = (function () {
       title = el.textContent; body = '<p>' + ((TIPS.seg[key[1]] || {})[key[2]] || '') + '</p>';
     } else if (key[0] === 'pattern') { title = 'Surface pattern'; body = patternHelp(); }
     else if (key[0] === 'adaptive') { title = 'Adaptive layers'; body = '<p>' + TIPS.adaptive + '</p>'; }
+    else if (key[0] === 'batch') { title = 'Several handles at once'; body = '<p>' + TIPS.batch + '</p>'; }
+    else if (key[0] === 'handle') { title = 'Handle'; body = '<p>' + TIPS.handle + '</p>'; }
     if (el.dataset.why) body += '<p class="why"><b>Why it\u2019s greyed out</b>' + el.dataset.why + '</p>';
     return title || body ? '<b>' + title + '</b>' + body : '';
   }
