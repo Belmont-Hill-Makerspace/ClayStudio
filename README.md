@@ -24,11 +24,21 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 | Tulip vase | 90 mm wide, 130 mm tall, fluted, with a wavy rim |
 | Ornament | 65 mm wide, 70 mm tall, twisted star, optional hanger tabs |
 
-**Surface patterns:** vertical ribs, spiral ribs, diamonds and bubbles. Which ones are offered depends on the shape.
+**Surface patterns:** vertical ribs, spiral ribs, diamonds, bubbles, weave and coral. Which ones are offered depends on the shape. Coral is laid out at random; its **Variant** number gives a different layout. Any pattern can go **All over** or **Only where painted**: choose that, then brush over the 3D picture where the pattern should go (painted areas show in blue). **Add another pattern on top** layers up to two more patterns (three in advanced settings), each with its own size and its own painted area.
+
+**Freeform shaping:**
+
+- **Push and pull:** brush over the 3D picture to bulge the wall out, press it in, or smooth it. Students can go up to 5 mm either way.
+- **Cage:** a few rings of dots around the piece. Drag a dot to bulge or pinch the wall there. Dots on the top ring also lift or drop the rim, which prints with tilted layers like the wavy rim.
+- **Mirror left and right** copies each brush stroke or dot move to the other side. **Move the whole ring** moves every dot on a ring together.
+- One finger (or the left mouse button) brushes. Two fingers (or the right mouse button) turn the piece.
+- Freeform shaping is off for stacking pieces, so the foot and rim still fit.
 
 **Bead textures:** pearls, knit and diagonal. These change how much clay the printer pushes as it goes, so the bead itself swells and thins without changing the shape. They're offered only with the patterns they suit.
 
 **Handles:** the mug, and optionally the espresso cup, cappuccino cup and tumbler, can have a handle. The piece gets a smooth flat strip on one side, and the handle gets its own print file (**Save the handle print file**). The handle prints lying flat, so it needs no support, and its two ends are shaped to sit flush on the strip. The page shows the finger opening, so you can check it fits. To make a class set or spares, tick **Print several handles at once**: one file then holds several copies of the same handle, as many as fit on the plate (about 3 mug handles or 8 espresso handles), built up together layer by layer. It's off by default, so a normal handle file has one handle.
+
+**Outlines:** round, star and spout. Advanced settings also offer an oval.
 
 **Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming.
 
@@ -38,7 +48,7 @@ Every shape has built-in limits that keep designs printable. If a change would m
 
 1. Open the link above in Safari, Chrome or Edge.
 2. Choose a starting shape at the top.
-3. Adjust the size, side shape, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to.
+3. Adjust the size, side shape, freeform shaping, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to.
 4. Optionally, add up to 3 initials for the bottom.
 5. Use **Watch it print** to see the nozzle build the piece layer by layer.
 6. When the bar under the picture says **Ready to print**, click **Save the print file**.
@@ -74,6 +84,8 @@ The core shapes and print settings have been printed many times. These newer fea
 - adaptive layers
 - the priming loop
 - handles and the mug
+- weave and coral patterns, painted patterns and patterns on top of each other
+- freeform shaping (push and pull, and the cage) and the oval outline
 
 ## Working offline
 

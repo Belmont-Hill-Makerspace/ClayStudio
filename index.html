@@ -147,6 +147,44 @@ body:not(.teacher) .teacher-only { display: none !important; }
 #tip .why { margin-top: 8px; padding-left: 9px; border-left: 3px solid var(--glaze); }
 @media (prefers-reduced-motion: no-preference) { #tip { animation: tipIn .12s ease-out; } }
 @keyframes tipIn { from { opacity: 0; } }
+/* freeform shaping, extra pattern layers and the on-piece brush */
+h3.sub { font-size: 15px; margin: 14px 0 2px; }
+.btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.btnrow .secondary { flex: 1; padding: 7px 10px; }
+.secondary[aria-pressed="true"] { background: var(--glaze); color: var(--glaze-ink); border-color: var(--glaze); }
+.effect { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px 8px; margin: 10px 0; background: var(--bg); }
+.effect .ehead { display: flex; align-items: center; gap: 8px; }
+.effect .ehead b { flex: 1; }
+.effect select { margin: 6px 0; }
+.brushbar { position: absolute; top: 14px; right: 14px; width: 280px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; box-shadow: 0 6px 20px color-mix(in srgb, var(--ink) 14%, transparent); }
+.brushbar[hidden] { display: none; }
+.brushbar .bb-head { display: flex; align-items: center; gap: 8px; }
+.brushbar .bb-head b { flex: 1; }
+.brushbar .primary { padding: 6px 14px; }
+.brushbar .seg { margin: 0; }
+.brushbar label { display: grid; grid-template-columns: 1fr auto; font-size: 13px; color: var(--muted); }
+.brushbar label input { grid-column: 1 / -1; }
+.brushbar .note { margin: 0; }
+.brushbar .bb-head .secondary { padding: 5px 10px; font-size: 14px; }
+.brushbar .bb-sliders { display: grid; gap: 6px; }
+.brushbar .bb-checks { display: flex; flex-wrap: wrap; gap: 0 14px; }
+.brushbar .check { margin: 0; font-size: 13px; color: var(--ink); display: flex; grid-template-columns: none; }
+.brushbar .check input { grid-column: auto; }
+.bb-short { display: none; }
+#view.brushing canvas { cursor: crosshair; }
+#view.brushing.over-dot canvas { cursor: grab; }
+#view.brushing.dragging-dot canvas { cursor: grabbing; }
+#view.brushing .viewbar { display: none; }               /* the brush always works on the solid piece */
+@media (max-width: 820px) {
+  body.brushing .app { grid-template-rows: auto 74vh auto; }
+  .brushbar { top: auto; bottom: 8px; left: 8px; right: 8px; width: auto; padding: 8px 10px; gap: 5px; }
+  .brushbar .bb-sliders { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .bb-long { display: none; }
+  .bb-short { display: block; }
+  #view.brushing .dims { display: none; }
+  body.brushing .status { max-height: 3.2em; overflow: hidden; padding-top: 8px; padding-bottom: 8px; }   /* just the headline */
+}
 @media (max-width: 820px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto; height: auto; }
   aside { grid-row: 3; border-right: 0; border-top: 1px solid var(--line); }
@@ -189,7 +227,10 @@ body:not(.teacher) .teacher-only { display: none !important; }
       <details open>
         <summary>Size</summary>
         <div class="seg teacher-only" id="outline" role="group" aria-label="Outline">
-          <button data-v="CIRCLE">Round</button><button data-v="STAR">Star</button><button data-v="TEARDROP">Spout</button>
+          <button data-v="CIRCLE">Round</button><button data-v="OVAL">Oval</button><button data-v="STAR">Star</button><button data-v="TEARDROP">Spout</button>
+        </div>
+        <div class="only-oval">
+          <div data-num="oval" data-label="Front to back" data-hint="share of the width" data-min="0.5" data-max="1" data-step="0.01"></div>
         </div>
         <div data-num="width" data-label="Width after firing" data-unit="mm" data-min="30" data-max="160" data-step="1"></div>
         <div data-num="height" data-label="Height after firing" data-unit="mm" data-min="20" data-max="230" data-step="1"></div>
@@ -224,18 +265,49 @@ body:not(.teacher) .teacher-only { display: none !important; }
       </details>
 
       <details>
+        <summary>Freeform shaping</summary>
+        <p class="note no-free">Freeform shaping is off for stacking pieces: the foot and the rim have to match the next piece exactly.</p>
+        <div class="only-free">
+          <h3 class="sub">Push and pull</h3>
+          <p class="note">Press the wall in or pull it out with a brush, like working soft clay with your thumb. The bigger the brush, the gentler the change, which suits wet clay best.</p>
+          <div class="btnrow"><button class="secondary" id="sculptBtn" data-tipkey="sculpt">Sculpt on the piece</button></div>
+          <p class="note" id="sculptInfo"></p>
+          <button class="reset" data-reset="sculpt">Clear sculpting</button>
+          <h3 class="sub">Cage</h3>
+          <p class="note">A ring of dots at several heights. Drag a dot out or in to bulge or pinch the wall there. Dots on the top ring also move up and down, to shape the rim.</p>
+          <label class="check" data-tipkey="cage"><input type="checkbox" id="cageOn"> Shape with a cage</label>
+          <div class="only-cage">
+            <div data-num="cage_rings" data-label="Rings" data-hint="heights with dots" data-min="3" data-max="6" data-step="1"></div>
+            <div data-num="cage_points" data-label="Dots on each ring" data-min="4" data-max="12" data-step="1"></div>
+            <div class="btnrow"><button class="secondary" id="cageBtn">Move the cage dots</button></div>
+            <p class="note" id="cageInfo"></p>
+            <button class="reset" data-reset="cage">Reset cage</button>
+          </div>
+          <p class="note">New and untested on the printer: try a small piece first. Bulges, dents and rim peaks still have to pass the same lean check as every other shape, and the red dots in the picture show where they don’t.</p>
+        </div>
+      </details>
+
+      <details>
         <summary>Surface pattern</summary>
         <div class="rowhead"><select id="pattern" aria-label="Pattern" data-tipkey="pattern">
           <option value="NONE">Smooth</option><option value="RIBS">Vertical ribs</option><option value="SPIRAL">Spiral ribs</option>
           <option value="BANDS">Bands</option><option value="BUBBLES">Bubbles</option><option value="DIAMONDS">Diamonds</option>
-          <option value="SCALLOPS">Scalloped flutes</option>
+          <option value="SCALLOPS">Scalloped flutes</option><option value="WEAVE">Weave</option><option value="CORAL">Coral</option>
         </select><button type="button" class="tipbtn" data-tipkey="pattern" aria-label="About the surface patterns" aria-expanded="false">?</button></div>
         <p class="note" id="patternNote"></p>
         <div class="only-tex">
           <div data-num="depth" data-label="Depth" data-unit="mm" data-hint="how far it stands out" data-min="0.2" data-max="3" data-step="0.1"></div>
           <div class="only-rep" data-num="repeats" data-label="How many around" data-min="2" data-max="60" data-step="1"></div>
           <div class="only-pitch" data-num="pitch" data-label="Pattern height" data-unit="mm" data-min="5" data-max="200" data-step="1"></div>
+          <div class="only-seed" data-num="pattern_seed" data-label="Variant" data-hint="a different layout" data-min="1" data-max="99" data-step="1"></div>
+          <div class="seg" id="patWhere" role="group" aria-label="Where the pattern goes">
+            <button data-v="ALL">All over</button><button data-v="PAINT">Only where painted</button>
+          </div>
+          <div class="only-paint btnrow"><button class="secondary paintbtn" data-paint="base">Paint where it goes</button></div>
         </div>
+        <div id="effects"></div>
+        <button class="add-row" id="addEffect">Add another pattern on top</button>
+        <p class="note" id="effectNote"></p>
         <div class="only-fade">
           <div data-num="fade_top" data-label="Smooth band at the lip" data-unit="mm" data-min="0" data-max="30" data-step="1"></div>
           <div data-num="fade_bottom" data-label="Smooth band at the foot" data-unit="mm" data-min="0" data-max="30" data-step="1"></div>
@@ -392,6 +464,20 @@ body:not(.teacher) .teacher-only { display: none !important; }
         </div>
       </div>
       <div class="dims" id="dims"></div>
+      <div class="brushbar" id="brushbar" hidden>
+        <div class="bb-head"><b id="bbTitle">Sculpt</b><button class="secondary" id="bbUndo" title="Undo (⌘Z / Ctrl+Z)">↶ Undo</button><button class="primary" id="bbDone">Done</button></div>
+        <div class="seg" id="bbTool" role="group" aria-label="Brush"></div>
+        <div class="bb-sliders">
+          <label id="bbSizeRow">Brush size <span id="bbSizeV"></span><input type="range" id="bbSize" min="6" max="40" step="1" aria-label="Brush size"></label>
+          <label id="bbStrRow">Strength <span id="bbStrV"></span><input type="range" id="bbStr" min="1" max="10" step="1" aria-label="Brush strength"></label>
+        </div>
+        <div class="bb-checks">
+          <label class="check"><input type="checkbox" id="bbMirror"> Mirror left and right</label>
+          <label class="check" id="bbRingRow"><input type="checkbox" id="bbRing"> Move the whole ring</label>
+        </div>
+        <p class="note bb-long" id="bbHint"></p>
+        <p class="note bb-short" id="bbHintShort"></p>
+      </div>
     </div>
     <section class="status" id="status" aria-live="polite"></section>
   </main>
@@ -2451,7 +2537,22 @@ var ClayShapes = (function () {
   }
   function smoothstep(t) { t = t < 0 ? 0 : (t > 1 ? 1 : t); return t * t * (3 - 2 * t); }
   function frac(x) { return x - Math.floor(x); }
-  function pattern_value(kind, A, R, P, s, z) {
+  // ---------- seeded gradient noise (for Coral) ----------
+  // Periodic around the piece (period = per cells), so the texture closes up with no seam.
+  function hash3(a, b, seed) {
+    var h = Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ Math.imul((seed | 0) + 101, 0x9e3779b1);
+    h = Math.imul(h ^ (h >>> 15), 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  }
+  function gnoise(x, y, per, seed) {
+    var ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    function g(a, b, dx, dy) { var an = 2 * Math.PI * hash3(((a % per) + per) % per, b, seed); return Math.cos(an) * dx + Math.sin(an) * dy; }
+    var u = fx * fx * fx * (fx * (fx * 6 - 15) + 10), v = fy * fy * fy * (fy * (fy * 6 - 15) + 10);
+    var a0 = g(ix, iy, fx, fy) + u * (g(ix + 1, iy, fx - 1, fy) - g(ix, iy, fx, fy));
+    var a1 = g(ix, iy + 1, fx, fy - 1) + u * (g(ix + 1, iy + 1, fx - 1, fy - 1) - g(ix, iy + 1, fx, fy - 1));
+    return 1.4 * (a0 + v * (a1 - a0));                 // about -1..1
+  }
+  function pattern_value(kind, A, R, P, s, z, seed) {
     if (kind === 'NONE' || !A) return 0;
     P = Math.max(P, 1e-6);
     var TP = 2 * Math.PI;
@@ -2464,6 +2565,21 @@ var ClayShapes = (function () {
         var d1 = 0.5 - Math.abs(frac(R * s + z / P) - 0.5), d2 = 0.5 - Math.abs(frac(R * s - z / P) - 0.5);
         return A * (4 * Math.min(d1, d2) - 1);
       case 'SCALLOPS': return A * Math.abs(Math.sin(Math.PI * R * s));
+      // Weave: strands that pass over and under each other. Each band is half the pattern height and
+      // swaps over/under every repeat around, offset row to row like a basket. R must be even to close up.
+      case 'WEAVE':
+        // The strand's cross-section is a plain sine (no hard edge, so it leans gently between rows), and the
+        // over-under swing is three times the groove, so it reads as weaving rather than as bands.
+        var wv = 2 * z / P, row = Math.floor(wv), band = Math.sin(Math.PI * (wv - row));
+        return A * (band * (0.25 + 0.75 * Math.cos(Math.PI * (R * s + row))) - 0.16);
+      // Coral: branching ridges from seeded noise. R = how many cells around, P = cell height.
+      // The seed (Variant) changes the layout without changing the size of the features.
+      case 'CORAL':
+        var sd = Math.round(seed || 1), cx = R * s, cy = z / P;
+        var wx = cx + 0.45 * gnoise(cx + 7.3, cy + 1.7, R, sd + 17), wy = cy + 0.45 * gnoise(cx + 3.1, cy + 9.2, R, sd + 29);
+        // ridges sit where the noise crosses zero; kept at least a clay line wide (thin ones can't print)
+        var r1 = 1 - Math.min(1, Math.abs(gnoise(wx, wy, R, sd)) * 1.7), r2 = 1 - Math.min(1, Math.abs(gnoise(2 * wx, 2 * wy, 2 * R, sd + 5)) * 1.7);
+        return A * (2 * (0.85 * Math.pow(r1, 1.6) + 0.15 * Math.pow(r2, 1.6)) - 0.75);
     }
     return 0;
   }
@@ -2495,6 +2611,85 @@ var ClayShapes = (function () {
     return 0.5 * a;
   }
 
+  // ---------- freeform grids (paint masks and sculpting) ----------
+  // A grid is the wall unrolled flat like a label: GU columns around (s = 0-1, starting at the front, the same
+  // way round as the outline points) and GV rows up (t = 0-1, foot to full height). Stored as base64 bytes so a
+  // design stays small. Masks: 0-255 = none to full. Sculpting: signed, in 0.1 mm steps (so up to 12.7 mm).
+  // A grid cell is about 3 mm on a cup, the same as the clay line: finer detail than that can't print anyway.
+  var GU = 96, GV = 48, SCULPT_STEP = 0.1;
+  function grid_new() { return new Float32Array(GU * GV); }
+  function grid_decode(str, signed) {
+    if (!str) return null;
+    var bin = typeof atob === 'function' ? atob(str) : Buffer.from(str, 'base64').toString('binary');
+    if (bin.length !== GU * GV) return null;
+    var g = grid_new(), any = false;
+    for (var i = 0; i < bin.length; i++) {
+      var b = bin.charCodeAt(i), v = signed ? (b > 127 ? b - 256 : b) * SCULPT_STEP : b / 255;
+      g[i] = v; if (v) any = true;
+    }
+    return any ? g : null;
+  }
+  function grid_encode(g, signed) {
+    if (!g) return null;
+    var out = '', any = false;
+    for (var i = 0; i < g.length; i++) {
+      var b = signed ? Math.max(-127, Math.min(127, Math.round(g[i] / SCULPT_STEP))) : Math.max(0, Math.min(255, Math.round(g[i] * 255)));
+      if (b) any = true;
+      out += String.fromCharCode(b & 255);
+    }
+    if (!any) return null;
+    return typeof btoa === 'function' ? btoa(out) : Buffer.from(out, 'binary').toString('base64');
+  }
+  function cr1(a, b, c, d, f) { return b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - d + f * (3 * (b - c) + d - a))); }
+  // smooth (Catmull-Rom) sample: wraps around the piece, stops at the foot and the rim
+  function grid_sample(g, s, t) {
+    var u = (s - Math.floor(s)) * GU, v = Math.min(1, Math.max(0, t)) * (GV - 1);
+    var iu = Math.floor(u), fu = u - iu, iv = Math.min(GV - 2, Math.floor(v)), fv = v - iv, col = [], k, j;
+    for (k = -1; k <= 2; k++) {
+      var r = Math.min(GV - 1, Math.max(0, iv + k)) * GU, c = [];
+      for (j = -1; j <= 2; j++) c.push(g[r + ((iu + j) % GU + GU) % GU]);
+      col.push(cr1(c[0], c[1], c[2], c[3], fu));
+    }
+    return cr1(col[0], col[1], col[2], col[3], fv);
+  }
+  // One dab of a brush centred at (s0, t0). rs/rt: brush radius as a share of the way round / of the height.
+  // mode ADD adds amt at the centre (fading to 0 at the edge); SMOOTH pulls values toward their neighbours.
+  function grid_brush(g, s0, t0, rs, rt, amt, mode, lo, hi) {
+    var cu = s0 * GU, cv = t0 * (GV - 1), ru = Math.max(1, rs * GU), rv = Math.max(1, rt * (GV - 1));
+    var u0 = Math.floor(cu - ru), u1 = Math.ceil(cu + ru), v0 = Math.max(0, Math.floor(cv - rv)), v1 = Math.min(GV - 1, Math.ceil(cv + rv));
+    var src = mode === 'SMOOTH' ? g.slice() : null, changed = false;
+    for (var v = v0; v <= v1; v++) for (var u = u0; u <= u1; u++) {
+      var du = (u - cu) / ru, dv = (v - cv) / rv, d2 = du * du + dv * dv;
+      if (d2 >= 1) continue;
+      var w = (1 - d2) * (1 - d2), idx = v * GU + ((u % GU) + GU) % GU, nv;
+      if (src) {
+        var sum = 0, cnt = 0;
+        for (var a = -1; a <= 1; a++) for (var b = -1; b <= 1; b++) {
+          var vv = v + a; if (vv < 0 || vv >= GV) continue;
+          sum += src[vv * GU + (((u + b) % GU) + GU) % GU]; cnt++;
+        }
+        nv = src[idx] + Math.min(1, amt) * w * (sum / cnt - src[idx]);
+      } else nv = g[idx] + amt * w;
+      nv = Math.max(lo, Math.min(hi, nv));
+      if (nv !== g[idx]) { g[idx] = nv; changed = true; }
+    }
+    return changed;
+  }
+
+  // ---------- cage ----------
+  // rings x points control values: how much wider (scale) each point makes the wall there, plus how far each
+  // point on the top ring lifts or drops the rim (mm). Smooth all the way round (Catmull-Rom, wrapping) and
+  // monotone up the wall (PCHIP, like the side shape), so the wall never wiggles between rings.
+  function periodic_cr(vals, s) {
+    var N = vals.length, u = (s - Math.floor(s)) * N, i = Math.floor(u), f = u - i;
+    function at(k) { return vals[((k % N) + N) % N]; }
+    return cr1(at(i - 1), at(i), at(i + 1), at(i + 2), f);
+  }
+  function cage_ok(c) {
+    if (!c || !c.rings || !c.points || !c.scale || c.scale.length !== c.rings * c.points) return false;
+    return c.scale.some(function (v) { return Math.abs(v - 1) > 1e-6; }) || (c.lift || []).some(function (v) { return Math.abs(v) > 1e-6; });
+  }
+
   function Shape(spec, n) {
     n = n || 400;
     this.spec = spec; this.n = n;
@@ -2502,6 +2697,7 @@ var ClayShapes = (function () {
     var rimMode = spec.rim || (spec.sloped ? 'SLOPED' : 'FLAT');
     this.T = rimMode === 'TABS' ? Math.max(0, Number(spec.tab_h || 0)) : 0;
     this.H = this.Hb + this.T;
+    this.Htop0 = this.H;                                 // top before any cage lift
     var rows = spec.profile.map(function (r) { return [Number(r[0]), Number(r[1]), Number(r[2] === undefined ? r[1] : r[2])]; })
       .sort(function (a, b) { return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]; });
     var clean = [];
@@ -2514,6 +2710,9 @@ var ClayShapes = (function () {
     var W = Number(spec.width), R = W / 2, dense = [], k, a;
     if (spec.outline === 'CIRCLE') {
       for (k = 0; k < 1440; k++) { a = -Math.PI / 2 + 2 * Math.PI * k / 1440; dense.push([R * Math.cos(a), R * Math.sin(a)]); }
+    } else if (spec.outline === 'OVAL') {         // oval: the width runs left to right, front to back is a share of it
+      var ov = Math.min(1, Math.max(0.3, Number(spec.oval || 0.75)));
+      for (k = 0; k < 1440; k++) { a = -Math.PI / 2 + 2 * Math.PI * k / 1440; dense.push([R * Math.cos(a), R * ov * Math.sin(a)]); }
     } else if (spec.outline === 'STAR') {
       var lobes = Math.max(2, Math.trunc(spec.lobes)), dep = Math.min(0.6, Math.max(0, Number(spec.lobe_depth)));
       for (k = 0; k < 2880; k++) {
@@ -2615,7 +2814,91 @@ var ClayShapes = (function () {
       this.plane = [0, Math.min.apply(null, ys), this.Hb - Number(spec.drop), 0, Math.sin(ang), Math.cos(ang)];
     }
     this._rim = null;
+
+    // ---------- Clay Studio extras (not in the Grasshopper files) ----------
+    // Pattern layers: the main pattern first, then any added ones. Each can be everywhere or only where painted.
+    function layer(kind, A, R, P, seed, where, mask) {
+      R = Math.max(1, Math.round(R));
+      if (kind === 'WEAVE') R = 2 * Math.ceil(R / 2);       // the over-under has to come round to where it started
+      return { kind: kind, A: A, R: R, P: P, seed: Number(seed || 1), mask: where === 'PAINT' ? (grid_decode(mask) || grid_new()) : null };
+    }
+    this.layers = [];
+    if (this.pattern !== 'NONE' && this.A) this.layers.push(layer(this.pattern, this.A, this.R, this.P, spec.pattern_seed, spec.pattern_where, spec.pattern_mask));
+    var self = this;
+    (spec.effects || []).forEach(function (e) {
+      if (e && e.kind && e.kind !== 'NONE' && Number(e.depth)) self.layers.push(layer(e.kind, Number(e.depth), Number(e.repeats || 1), Number(e.pitch || 30), e.seed, e.where, e.mask));
+    });
+    this.Atot = this.layers.reduce(function (a, L) { return a + Math.abs(L.A); }, 0);
+    // Sculpting and the cage leave stacking pieces alone: the foot and rim have to match exactly.
+    this.sculpt = this.stack ? null : grid_decode(spec.sculpt, true);
+    this.cage = null; this.lift = false; this.liftTilt = 0;
+    if (!this.stack && cage_ok(spec.cage)) {
+      var cg = spec.cage, NR = Math.round(cg.rings), NP = Math.round(cg.points), cv = [], cm = [], r, ii;
+      for (r = 0; r < NR; r++) {
+        var row = cg.scale.slice(r * NP, (r + 1) * NP).map(Number), vr = [];
+        for (ii = 0; ii < n; ii++) vr.push(periodic_cr(row, ii / n));
+        cv.push(vr);
+      }
+      // PCHIP slopes up each column (same rule as the side shape), so the wall stays monotone between rings
+      var hh = 1 / (NR - 1);
+      for (r = 0; r < NR; r++) cm.push(new Float64Array(n));
+      for (ii = 0; ii < n; ii++) {
+        var dd = [];
+        for (r = 0; r < NR - 1; r++) dd.push((cv[r + 1][ii] - cv[r][ii]) / hh);
+        cm[0][ii] = dd[0]; cm[NR - 1][ii] = dd[NR - 2];
+        for (r = 1; r < NR - 1; r++) cm[r][ii] = dd[r - 1] * dd[r] <= 0 ? 0 : 2 / (1 / dd[r - 1] + 1 / dd[r]);
+      }
+      this.cage = { NR: NR, NP: NP, v: cv, m: cm };
+      var lift = (cg.lift || []).map(Number);
+      if (lift.length === NP && lift.some(function (v) { return Math.abs(v) > 1e-6; })) {
+        this.lift = true; this._liftI = []; this._angT = [];
+        var lmax = -Infinity, prev = null;
+        for (ii = 0; ii < n; ii++) {
+          var L = periodic_cr(lift, ii / n); this._liftI.push(L); lmax = Math.max(lmax, L);
+          var q = this._smooth(ii, this.Hb), an = Math.atan2(q[1], q[0]);
+          if (prev !== null) { var dA = an - prev[1]; dA -= 2 * Math.PI * Math.round(dA / (2 * Math.PI)); an = prev[0] + dA; }
+          prev = [an, Math.atan2(q[1], q[0])]; this._angT.push(an);
+        }
+        this.H = this.Htop0 + Math.max(0, lmax);
+        var rims = [], hmax = -Infinity, tmax = 0;
+        for (ii = 0; ii < n; ii++) { rims.push(this.rim(ii)); hmax = Math.max(hmax, rims[ii]); }
+        this.H = hmax;
+        // how steeply the rim climbs along its length: the nozzle body has to clear the high side
+        for (ii = 0; ii < n; ii++) {
+          var a1 = this.point(ii, rims[ii], false), b1 = this.point((ii + 1) % n, rims[(ii + 1) % n], false);
+          var run = hyp(b1[0] - a1[0], b1[1] - a1[1]);
+          if (run > 1e-6) tmax = Math.max(tmax, Math.abs(rims[(ii + 1) % n] - rims[ii]) / run);
+        }
+        this.liftTilt = Math.atan(tmax) * 180 / Math.PI;
+      }
+    }
   }
+  // the cage's widening at outline point i, height share t
+  Shape.prototype._cage_scale = function (i, t) {
+    var c = this.cage, NR = c.NR; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+    var u = t * (NR - 1), k = Math.min(NR - 2, Math.floor(u)), f = u - k, h = 1 / (NR - 1), f2 = f * f, f3 = f2 * f;
+    return (2 * f3 - 3 * f2 + 1) * c.v[k][i] + (f3 - 2 * f2 + f) * h * c.m[k][i] + (-2 * f3 + 3 * f2) * c.v[k + 1][i] + (f3 - f2) * h * c.m[k + 1][i];
+  };
+  // the cage's rim lift at a point (x, y), found from its direction from the centre
+  Shape.prototype._lift_at = function (x, y) {
+    var T = this._angT, n = T.length, a0 = T[0], d = Math.atan2(y, x) - a0;
+    d -= 2 * Math.PI * Math.floor(d / (2 * Math.PI));
+    var a = a0 + d, lo = 0, hi = n;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (T[mid] <= a) lo = mid; else hi = mid; }
+    var nxt = lo + 1 < n ? T[lo + 1] : a0 + 2 * Math.PI, f = nxt > T[lo] ? (a - T[lo]) / (nxt - T[lo]) : 0, L = this._liftI;
+    return L[lo] + f * (L[(lo + 1) % n] - L[lo]);
+  };
+  // where to draw the cage's dots (fired mm), a little outside the wall. R = distance from the centre before the
+  // cage widens it there (to turn a drag in mm into a widening), nx/ny = which way is out.
+  Shape.prototype.cage_handles = function (NR, NP) {
+    var out = [];
+    for (var r = 0; r < NR; r++) for (var p = 0; p < NP; p++) {
+      var i = Math.round(p / NP * this.n) % this.n, z = r === NR - 1 ? this.rim(i) : r / (NR - 1) * this.Hb;
+      var sm = this._smooth(i, z), q = this.point(i, z, false);
+      out.push({ r: r, p: p, x: q[0] + sm[2] * 6, y: q[1] + sm[3] * 6, z: z, nx: sm[2], ny: sm[3], R: hyp(sm[0], sm[1]) });
+    }
+    return out;
+  };
   Shape.prototype._smooth = function (i, z, inset) {
     var t = Math.min(1, z / this.Hb), sx = this.sx(t), sy = this.sy(t);
     var x = this.bx[i] * sx, y = this.by[i] * sy, nx = this.bnx[i] / sx, ny = this.bny[i] / sy, L = hyp(nx, ny) || 1;
@@ -2628,15 +2911,19 @@ var ClayShapes = (function () {
     return [x, y, nx, ny];
   };
   Shape.prototype.top_z = function (x, y) {
+    if (this.lift) return this._top0(x, y) + this._lift_at(x, y);
+    return this._top0(x, y);
+  };
+  Shape.prototype._top0 = function (x, y) {
     if (this.plane) {
-      var P = this.plane; return Math.min(this.H, P[2] - (P[3] * (x - P[0]) + P[4] * (y - P[1])) / P[5]);
+      var P = this.plane; return Math.min(this.Htop0, P[2] - (P[3] * (x - P[0]) + P[4] * (y - P[1])) / P[5]);
     }
     if (this.T) return this.Hb + this.T * Math.pow(Math.max(0, Math.cos(2 * Math.atan2(y, x))), 4);
     if (this.waveN && this.waveD) return this.Hb - this.waveD * (1 - Math.cos(this.waveN * (Math.atan2(y, x) - this.wavePhase))) / 2;
-    return this.H;
+    return this.Htop0;
   };
   Shape.prototype.rim = function (i, inset) {
-    if (!this.plane && !this.T && !(this.waveN && this.waveD)) return this.H;
+    if (!this.plane && !this.T && !(this.waveN && this.waveD) && !this.lift) return this.H;
     var z = this.H;
     for (var k = 0; k < 4; k++) { var p = this._smooth(i, z, inset || 0); z = Math.min(this.H, this.top_z(p[0], p[1])); }
     return z;
@@ -2644,8 +2931,18 @@ var ClayShapes = (function () {
   Shape.prototype.point = function (i, z, textured, inset) {
     if (textured === undefined) textured = true;
     var sm = this._smooth(i, z, inset || 0), x = sm[0], y = sm[1], hz = this.handle ? this._hz(z) : 0;
-    if (textured && this.pattern !== 'NONE' && this.A) {
-      var d = pattern_value(this.pattern, this.A, this.R, this.P, i / this.n, z), f = 1;
+    if (this.cage || this.sculpt) {
+      var qt = hz > 0 ? this._quiet(Math.atan2(sm[1], sm[0]), z, hz) : 1;      // leave the handle's flat strip alone
+      if (this.cage) { var cm = 1 + (this._cage_scale(i, z / this.Hb) - 1) * qt; x *= cm; y *= cm; }
+      if (this.sculpt) { var sc = grid_sample(this.sculpt, i / this.n, z / this.Hb) * qt; x += sm[2] * sc; y += sm[3] * sc; }
+    }
+    if (textured && this.layers.length) {
+      var d = 0, f = 1;
+      for (var li = 0; li < this.layers.length; li++) {
+        var Ly = this.layers[li], v = pattern_value(Ly.kind, Ly.A, Ly.R, Ly.P, i / this.n, z, Ly.seed);
+        if (Ly.mask) v *= Math.max(0, Math.min(1, grid_sample(Ly.mask, i / this.n, z / this.Hb)));
+        d += v;
+      }
       if (this.ft > 0) {
         if (!this._rim) { this._rim = []; for (var k = 0; k < this.n; k++) this._rim.push(this.rim(k)); }
         f *= smoothstep((this._rim[i] - z - this.ftOff) / this.ft);
@@ -2756,8 +3053,10 @@ var ClayShapes = (function () {
     };
   };
   Shape.prototype.clay_top = function (k) {
-    if (this.plane) { var P = this.plane; return [P[0] * k, P[1] * k, P[2] * k, P[3], P[4], P[5]]; }
-    if (this.T || (this.waveN && this.waveD)) { var self = this; return { f: function (x, y) { return self.top_z(x / k, y / k) * k; }, tilt: 0 }; }
+    if (this.plane && !this.lift) { var P = this.plane; return [P[0] * k, P[1] * k, P[2] * k, P[3], P[4], P[5]]; }
+    if (this.plane || this.T || (this.waveN && this.waveD) || this.lift) {
+      var self = this; return { f: function (x, y) { return self.top_z(x / k, y / k) * k; }, tilt: this.lift ? this.liftTilt : 0 };
+    }
     return null;
   };
 
@@ -2792,7 +3091,7 @@ var ClayShapes = (function () {
       for (i = 0; i < n; i++) faces.push([ct, top + i, top + (i + 1) % n]);
       return { verts: verts, faces: faces, warn: warn };
     }
-    var inset = wall + (this.pattern !== 'NONE' ? Math.abs(this.A) : 0), irims = [];
+    var inset = wall + this.Atot, irims = [];
     for (i = 0; i < n; i++) irims.push(this.rim(i, inset));
     var imin = Math.min.apply(null, irims);
     if (imin - floor < 2) throw new Error('The rim comes too close to the floor - use a gentler slope or a thinner floor.');
@@ -2843,7 +3142,8 @@ var ClayShapes = (function () {
     return { buffer: buf, count: tris.length };
   }
 
-  return { PRESETS: PRESETS, Shape: Shape, stl_binary: stl_binary, pattern_value: pattern_value };
+  return { PRESETS: PRESETS, Shape: Shape, stl_binary: stl_binary, pattern_value: pattern_value,
+    grid: { GU: GU, GV: GV, make: grid_new, decode: grid_decode, encode: grid_encode, sample: grid_sample, brush: grid_brush } };
 })();
 
 
@@ -2860,9 +3160,11 @@ var ClayShapes = (function () {
   var CLAY_DEFAULTS = { shrink: 12, LayerH: 1, LineW: 3, Speed: 25, Mix: 0.85, BaseLayers: 3, MaxStep: TEACHER ? 45 : STUDENT_STEP,
     Spiral: true, fdm: 'WALLED', wall: 1.6, floor: 2, view: 'SHAPE', initials: '', adaptive: true, SkirtLaps: 2, FirstSpeed: 15 };
   var presetKey = 'ESPRESSO';
-  var ALL_PATTERNS = ['NONE', 'RIBS', 'SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS', 'SCALLOPS'];
+  var ALL_PATTERNS = ['NONE', 'RIBS', 'SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS', 'SCALLOPS', 'WEAVE', 'CORAL'];
   // what students can change for each starting shape (ranges in finished mm)
-  var CUP_TEX = ['NONE', 'RIBS', 'SPIRAL', 'DIAMONDS', 'BUBBLES'];
+  // Weave and Coral were added later and haven't been checked corner by corner like the others: the lean
+  // check still blocks any combination that leans too far.
+  var CUP_TEX = ['NONE', 'RIBS', 'SPIRAL', 'DIAMONDS', 'BUBBLES', 'WEAVE', 'CORAL'];
   // Each range was checked at its corners with every allowed pattern at its deepest setting.
   // aspect = the lowest height allowed, as a fraction of the width (wide + short = too steep).
   // handle: the shape can take a handle. Handle ranges are set so the finger opening stays usable.
@@ -2890,6 +3192,9 @@ var ClayShapes = (function () {
     ORNAMENT: { width: [60, 75], height: [62, 85], aspect: 1.05, lobes: [6, 10], lobe_depth: [0.06, 0.15], twist: [-60, 60],
       patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [5, 10], depth: [0.5, 0.8] }
   };
+  // freeform shaping and extra pattern layers: none of these are in the starting shapes, so a new shape starts clean
+  var FREE_DEFAULTS = { oval: 0.75, pattern_where: 'ALL', pattern_mask: null, pattern_seed: 1, effects: [], sculpt: null,
+    cage_on: false, cage_rings: 4, cage_points: 8, cage: null };
   var HANDLE_DEFAULTS = { handle: false, handle_top: 14, handle_bot: 20, handle_reach: 30, handle_w: 14, handle_lines: 3, handle_n: 1, handle_batch: false };
   // can this piece take a handle? Students: the shapes marked in LIMITS. Teachers: any round piece that doesn't stack.
   function handleCount() { return state.handle_batch ? Math.max(1, Math.round(state.handle_n || 1)) : 1; }   // batches are opt-in
@@ -2901,11 +3206,12 @@ var ClayShapes = (function () {
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function loadPreset(key) {
+    if (typeof stopBrush === 'function' && brush.on) stopBrush(true);
     presetKey = key;
     var p = clone(S.PRESETS[key]), keep = {};
     Object.keys(CLAY_DEFAULTS).forEach(function (k) { keep[k] = (k in state) ? state[k] : CLAY_DEFAULTS[k]; });
     state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16,
-      stack: false, stack_clear: 1.5, stack_depth: 8 }, HANDLE_DEFAULTS, p, keep);
+      stack: false, stack_clear: 1.5, stack_depth: 8 }, HANDLE_DEFAULTS, clone(FREE_DEFAULTS), p, keep);
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === key); });
     applyLimits(); syncAll(); changed(true);
   }
@@ -2958,10 +3264,13 @@ var ClayShapes = (function () {
   // Which bead textures go with which surface pattern (from the side-by-side renders)
   function beadsAllowed() {
     if (TEACHER) return ['STEADY', 'PEARLS', 'KNIT', 'DIAGONAL'];
-    return { DIAMONDS: ['STEADY'], BUBBLES: ['STEADY'], SPIRAL: ['STEADY', 'PEARLS', 'DIAGONAL'] }[state.pattern] || ['STEADY', 'PEARLS', 'KNIT', 'DIAGONAL'];
+    return { DIAMONDS: ['STEADY'], BUBBLES: ['STEADY'], WEAVE: ['STEADY'], CORAL: ['STEADY'], SPIRAL: ['STEADY', 'PEARLS', 'DIAGONAL'] }[state.pattern] || ['STEADY', 'PEARLS', 'KNIT', 'DIAGONAL'];
   }
-  function patternMin() {
+  function patternMin(kind) {
     var L = LIMITS[presetKey] || {};
+    kind = kind || state.pattern;
+    if (kind === 'WEAVE' || kind === 'CORAL') return TEACHER ? 10 : 16;      // each band or branch needs several layers of clay
+    if (kind !== state.pattern) return kind === 'SPIRAL' ? 40 : ((kind === 'DIAMONDS' || kind === 'BUBBLES') ? (TEACHER ? 15 : (L.pitch_d || 18)) : 10);
     return state.pattern === 'SPIRAL' ? 40 : ((state.pattern === 'DIAMONDS' || state.pattern === 'BUBBLES') ? (TEACHER ? 15 : (L.pitch_d || 18)) : 10);
   }
   function applyAspect() {                       // keep wide pieces from getting too short (and too steep)
@@ -3017,10 +3326,41 @@ var ClayShapes = (function () {
     });
   }
   segBind('outline', 'outline'); segBind('rim', 'rim'); segBind('fdm', 'fdm'); segBind('viewmode', 'view'); segBind('bead', 'bead');
+  segBind('patWhere', 'pattern_where');
+  document.querySelectorAll('#patWhere button').forEach(function (b) {
+    b.addEventListener('click', function () {                 // choosing "only where painted" goes straight to the brush
+      if (b.dataset.v === 'PAINT') startBrush('mask:base');
+      else if (brush.on && brush.target === 'mask:base') stopBrush();
+    });
+  });
+  document.getElementById('cageOn').addEventListener('change', function (e) {
+    state.cage_on = e.target.checked;
+    if (state.cage_on) { fitCage(); syncAll(); changed(); startBrush('cage'); }
+    else { if (brush.on && brush.target === 'cage') stopBrush(true); syncAll(); changed(); }
+  });
+  document.getElementById('sculptBtn').addEventListener('click', function () { if (brush.on && brush.target === 'sculpt') stopBrush(); else startBrush('sculpt'); });
+  document.getElementById('cageBtn').addEventListener('click', function () { if (brush.on && brush.target === 'cage') stopBrush(); else startBrush('cage'); });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.paintbtn'); if (!b) return;
+    var t = 'mask:' + b.dataset.paint;
+    if (brush.on && brush.target === t) stopBrush(); else startBrush(t);
+  });
   document.getElementById('adaptive').addEventListener('change', function (e) { state.adaptive = e.target.checked; changed(); });
   document.getElementById('handleOn').addEventListener('change', function (e) { state.handle = e.target.checked; changed(); });
   document.getElementById('handleBatch').addEventListener('change', function (e) { state.handle_batch = e.target.checked; changed(); });
-  document.getElementById('pattern').addEventListener('change', function (e) { state.pattern = e.target.value; applyLimits(); syncAll(); changed(); });
+  // Weave and Coral look right at quite different sizes from ribs or spirals, so picking one sets sizes that suit it
+  // (about 22 mm per weave cell, 28 mm per coral branch, measured round the middle of the piece).
+  function suggestSizes(o, kind) {
+    if (kind !== 'WEAVE' && kind !== 'CORAL') return;
+    var mid = 0; (state.profile || []).forEach(function (r) { mid += Number(r[1]); }); mid = mid / Math.max(1, (state.profile || []).length);
+    var circ = Math.PI * state.width * (mid || 0.9), n = Math.round(circ / (kind === 'WEAVE' ? 22 : 28));
+    if (kind === 'WEAVE') n = 2 * Math.round(n / 2);
+    o.repeats = Math.max(4, Math.min(40, n)); o.pitch = kind === 'WEAVE' ? 18 : 26;
+    o.depth = Math.min(Number(o.depth) || 1, 1.0);
+  }
+  document.getElementById('pattern').addEventListener('change', function (e) {
+    state.pattern = e.target.value; suggestSizes(state, state.pattern); applyLimits(); syncAll(); changed();
+  });
   document.getElementById('initials').addEventListener('input', function (e) {
     var v = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
     if (e.target.value !== v) e.target.value = v;
@@ -3170,18 +3510,26 @@ var ClayShapes = (function () {
     document.querySelectorAll('#bead button').forEach(function (b) { setOff(b, beadOK.indexOf(b.dataset.v) < 0 ? beadWhy(b.dataset.v) : ''); });
     if (beadOK.indexOf(state.bead) < 0) { state.bead = 'STEADY'; document.querySelectorAll('#bead button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === 'STEADY'); }); }
     document.getElementById('beadNote').textContent = beadOK.length === 1
-      ? 'Bead textures are off with ' + ({ DIAMONDS: 'diamonds', BUBBLES: 'bubbles' }[state.pattern] || 'this pattern') + ': the pattern already fills the wall and the two just muddy each other.'
+      ? 'Bead textures are off with ' + ({ DIAMONDS: 'diamonds', BUBBLES: 'bubbles', WEAVE: 'weave', CORAL: 'coral' }[state.pattern] || 'this pattern') + ': the pattern already fills the wall and the two just muddy each other.'
       : (beadOK.length < 4 ? 'Knit is greyed out because it doesn\u2019t go with spiral ribs. Hover over or tap it to see why.' : '');
     vis('.only-bead', state.bead && state.bead !== 'STEADY');
-    vis('.only-fade', state.pattern !== 'NONE' || (state.bead && state.bead !== 'STEADY'));
-    vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS'].indexOf(state.pattern) >= 0);
+    vis('.only-fade', state.pattern !== 'NONE' || (state.effects || []).length > 0 || (state.bead && state.bead !== 'STEADY'));
+    vis('.only-pitch', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS', 'WEAVE', 'CORAL'].indexOf(state.pattern) >= 0);
+    vis('.only-oval', state.outline === 'OVAL'); vis('.only-seed', state.pattern === 'CORAL');
+    vis('.only-paint', state.pattern_where === 'PAINT'); vis('.only-cage', !!state.cage_on);
+    vis('.only-free', !state.stack); vis('.no-free', !!state.stack);
+    var addB = document.getElementById('addEffect'), eff = (state.effects || []).length;
+    addB.disabled = eff >= maxEffects();
+    document.getElementById('effectNote').textContent = eff >= maxEffects() ? 'That\u2019s the most patterns one piece can take' + (TEACHER ? '.' : ' here.') :
+      (eff ? 'Patterns on top add together, so the wall leans further where they overlap. Keep each one shallow.' : '');
+    markBrushButtons();
     vis('.only-stack', !!state.stack);
     vis('.only-handleable', handleable()); vis('.only-handle', handleable() && !!state.handle); vis('.only-batch', !!state.handle_batch);
     vis('.only-sloped', state.rim === 'SLOPED'); vis('.only-tabs', state.rim === 'TABS'); vis('.only-wave', state.rim === 'WAVE'); vis('.only-walled', state.fdm === 'WALLED');
   }
   function syncAll() {
     Object.keys(numEls).forEach(function (k) { if (state[k] !== undefined) { numEls[k][0].value = state[k]; numEls[k][1].value = state[k]; } });
-    [['outline', 'outline'], ['rim', 'rim'], ['fdm', 'fdm'], ['viewmode', 'view'], ['bead', 'bead']].forEach(function (p) {
+    [['outline', 'outline'], ['rim', 'rim'], ['fdm', 'fdm'], ['viewmode', 'view'], ['bead', 'bead'], ['patWhere', 'pattern_where']].forEach(function (p) {
       document.querySelectorAll('#' + p[0] + ' button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === state[p[1]]); });
     });
     document.getElementById('pattern').value = state.pattern;
@@ -3190,6 +3538,8 @@ var ClayShapes = (function () {
     document.getElementById('handleOn').checked = !!state.handle;
     document.getElementById('handleBatch').checked = !!state.handle_batch;
     document.getElementById('initials').value = state.initials || '';
+    document.getElementById('cageOn').checked = !!state.cage_on;
+    renderEffects();
     drawProfile();
   }
 
@@ -3214,7 +3564,8 @@ var ClayShapes = (function () {
   fill.target.position.set(0, 0, -300); camera.add(fill.target);
   var rim = new THREE.DirectionalLight(0xffffff, 0.35); rim.position.set(0, 250, -200); scene.add(rim);
   var bedGroup = new THREE.Group(); scene.add(bedGroup);
-  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
+  var pieceMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, vertexColors: true });
+  var pieceColor = new THREE.Color(0xb7ad9f), glazeColor = new THREE.Color(0x2c5a88);   // set from the page colours in themeColors
   var handleMat = new THREE.MeshStandardMaterial({ color: 0xb7ad9f, roughness: 0.6, metalness: 0, side: THREE.DoubleSide });
   // "Watch it print" in the Both view: every point of the piece knows when the nozzle reaches it (printT,
   // from the nearest point on the real toolpath), and the piece shows only what has been printed so far.
@@ -3232,7 +3583,9 @@ var ClayShapes = (function () {
   function cssColor(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function themeColors() {
     renderer.setClearColor(new THREE.Color(cssColor('--view')));
-    pieceMat.color = new THREE.Color(cssColor('--piece')); handleMat.color = new THREE.Color(cssColor('--piece'));
+    pieceColor = new THREE.Color(cssColor('--piece')); glazeColor = new THREE.Color(cssColor('--glaze'));
+    handleMat.color = pieceColor.clone();
+    if (state.profile) preview();
     while (bedGroup.children.length) bedGroup.remove(bedGroup.children[0]);
     var grid = new THREE.GridHelper(167, 16, new THREE.Color(cssColor('--bed')), new THREE.Color(cssColor('--line')));
     bedGroup.add(grid);
@@ -3253,18 +3606,22 @@ var ClayShapes = (function () {
 
   function toThree(x, y, z) { return [x, z, -y]; }   // printer Z-up -> three Y-up
 
-  function setPiece(mesh) {
+  function setPiece(mesh, keepOff) {
     if (pieceMesh) { scene.remove(pieceMesh); pieceMesh.geometry.dispose(); }
     var pos = new Float32Array(mesh.verts.length * 3), idx = [], x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     mesh.verts.forEach(function (v) { if (v[0] < x0) x0 = v[0]; if (v[0] > x1) x1 = v[0]; if (v[1] < y0) y0 = v[1]; if (v[1] > y1) y1 = v[1]; });
     var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;      // centred on the bed, like the G-code
+    if (keepOff) { cx = pieceOff[0]; cy = pieceOff[1]; }  // mid-stroke: don't let the piece slide under the brush
     pieceOff = [cx, cy];
     mesh.verts.forEach(function (v, i) { var t = toThree(v[0] - cx, v[1] - cy, v[2]); pos[i * 3] = t[0]; pos[i * 3 + 1] = t[1]; pos[i * 3 + 2] = t[2]; });
     mesh.faces.forEach(function (f) { for (var k = 1; k < f.length - 1; k++) idx.push(f[0], f[k], f[k + 1]); });
     var g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     g.setIndex(idx); g.computeVertexNormals();
+    var col = mesh.colors || (function () { var c = new Float32Array(mesh.verts.length * 3); for (var q = 0; q < c.length; q += 3) { c[q] = pieceColor.r; c[q + 1] = pieceColor.g; c[q + 2] = pieceColor.b; } return c; })();
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     pieceMesh = new THREE.Mesh(g, pieceMat); scene.add(pieceMesh);
+    pieceMesh.userData = { n: mesh.n, nv: mesh.verts.length };
     // wireframe: rings every few mm up the wall and lines running up it, like a CAD view
     if (wireLines) { scene.remove(wireLines); wireLines.geometry.dispose(); wireLines = null; }
     var n = mesh.n, K = Math.round((mesh.verts.length - 1) / n) - 1, wp = [], j, i, a, b;
@@ -3435,6 +3792,387 @@ var ClayShapes = (function () {
     render();
   }
 
+  // ---------- extra pattern layers ----------
+  // Each added pattern is its own card. They add together on the wall, so each is kept shallow for students.
+  var repMax = 60;
+  function maxEffects() { return TEACHER ? 3 : 2; }
+  function allowedKinds() {
+    var L = LIMITS[presetKey] || {};
+    return (TEACHER ? ALL_PATTERNS : (L.patterns || ALL_PATTERNS)).filter(function (k) { return k !== 'NONE'; });
+  }
+  document.getElementById('addEffect').addEventListener('click', function () {
+    if ((state.effects || []).length >= maxEffects()) return;
+    var kinds = allowedKinds(), kind = kinds.indexOf('CORAL') >= 0 ? 'CORAL' : kinds[0];
+    var e = { kind: kind, depth: TEACHER ? 1 : 0.8, repeats: Math.min(10, repMax), pitch: 30, seed: 1, where: 'ALL', mask: null };
+    suggestSizes(e, kind); e.depth = Math.min(e.depth, TEACHER ? 1 : 0.8);
+    state.effects = (state.effects || []).concat([e]);
+    renderEffects(); changed();
+  });
+  function effRanges(e) {
+    return { depth: TEACHER ? [0.2, 3, 0.1] : [STUDENT_COMMON.depth[0], STUDENT_COMMON.depth[1], 0.1], repeats: [TEACHER ? 2 : 4, TEACHER ? 60 : Math.max(4, repMax), 1],
+      pitch: [patternMin(e.kind), 200, 1], seed: [1, 99, 1] };
+  }
+  function renderEffects() {
+    var box = document.getElementById('effects'); if (!box) return;
+    box.innerHTML = '';
+    var kinds = allowedKinds();
+    (state.effects || []).forEach(function (e, k) {
+      if (kinds.indexOf(e.kind) < 0) e.kind = kinds[0];
+      var R = effRanges(e), card = document.createElement('div'); card.className = 'effect';
+      card.innerHTML = '<div class="ehead"><b>Pattern ' + (k + 2) + '</b><button type="button" class="icon-btn" aria-label="Remove pattern ' + (k + 2) + '">\u00d7</button></div>';
+      card.querySelector('.icon-btn').addEventListener('click', function () {
+        if (brush.on && brush.target.indexOf('mask:') === 0 && brush.target !== 'mask:base') stopBrush(true);
+        state.effects.splice(k, 1); renderEffects(); changed();
+      });
+      var sel = document.createElement('select'); sel.setAttribute('aria-label', 'Pattern ' + (k + 2));
+      kinds.forEach(function (v) { var o = document.createElement('option'); o.value = v; o.textContent = PATTERN_NAMES[v]; sel.appendChild(o); });
+      sel.value = e.kind;
+      sel.addEventListener('change', function () { e.kind = sel.value; suggestSizes(e, e.kind); e.pitch = Math.max(e.pitch, patternMin(e.kind)); renderEffects(); changed(); });
+      card.appendChild(sel);
+      function row(key, label, unit, show) {
+        if (!show) return;
+        var r = R[key], v = Math.min(r[1], Math.max(r[0], Number(e[key])));
+        e[key] = v;
+        var d = document.createElement('div'); d.className = 'row';
+        d.innerHTML = '<label><span>' + label + (unit ? ' <span class="hint">(' + unit + ')</span>' : '') + '</span></label>' +
+          '<input type="range" min="' + r[0] + '" max="' + r[1] + '" step="' + r[2] + '" value="' + v + '" aria-label="' + label + ', pattern ' + (k + 2) + '">' +
+          '<input type="number" min="' + r[0] + '" max="' + r[1] + '" step="' + r[2] + '" value="' + v + '" aria-label="' + label + ', pattern ' + (k + 2) + '">';
+        var a = d.querySelector('input[type=range]'), b = d.querySelector('input[type=number]');
+        a.addEventListener('input', function () { e[key] = Number(a.value); b.value = a.value; changed(); });
+        b.addEventListener('change', function () { var x = Number(b.value); if (isNaN(x)) return; x = Math.min(r[1], Math.max(r[0], x)); e[key] = x; a.value = x; b.value = x; changed(); });
+        card.appendChild(d);
+      }
+      row('depth', 'Depth', 'mm', true);
+      row('repeats', 'How many around', '', e.kind !== 'BANDS');
+      row('pitch', 'Pattern height', 'mm', ['SPIRAL', 'BANDS', 'BUBBLES', 'DIAMONDS', 'WEAVE', 'CORAL'].indexOf(e.kind) >= 0);
+      row('seed', 'Variant', '', e.kind === 'CORAL');
+      var seg = document.createElement('div'); seg.className = 'seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Where pattern ' + (k + 2) + ' goes');
+      [['ALL', 'All over'], ['PAINT', 'Only where painted']].forEach(function (w) {
+        var bt = document.createElement('button'); bt.type = 'button'; bt.textContent = w[1]; bt.setAttribute('aria-pressed', e.where === w[0]);
+        bt.addEventListener('click', function () {
+          e.where = w[0]; renderEffects(); changed();
+          if (w[0] === 'PAINT') startBrush('mask:' + k); else if (brush.on && brush.target === 'mask:' + k) stopBrush();
+        });
+        seg.appendChild(bt);
+      });
+      card.appendChild(seg);
+      if (e.where === 'PAINT') {
+        var pr = document.createElement('div'); pr.className = 'btnrow';
+        pr.innerHTML = '<button type="button" class="secondary paintbtn" data-paint="' + k + '">Paint where it goes</button>';
+        card.appendChild(pr);
+      }
+      box.appendChild(card);
+    });
+    markBrushButtons();
+  }
+
+  // ---------- on-piece brush: painting where patterns go, and sculpting ----------
+  // The brush works on the unrolled grids (see "freeform grids" in ClayShapes). A dab lands where the pointer
+  // hits the 3D picture; its size is in fired mm, turned into a share of the way round at that height.
+  var G = S.grid, brush = { on: false, target: '', kind: '', tool: '', size: 14, str: 5, grid: null, prevView: null };
+  var curShape = null, curK = 1, ctrl0 = null, cursor = null, cageGroup = null, cageHandles = [], cageDrag = null;
+  function sculptLim() { return TEACHER ? 12 : 5; }                 // fired mm in or out
+  function cageLim() { return TEACHER ? { lo: 0.5, hi: 1.6, dn: -30, up: 30 } : { lo: 0.8, hi: 1.25, dn: -12, up: 8 }; }
+  var BRUSH_TOOLS = { sculpt: [['OUT', 'Bulge out'], ['IN', 'Press in'], ['SMOOTH', 'Smooth']], mask: [['PAINT', 'Paint'], ['ERASE', 'Erase']], cage: [] };
+  function maskRef(target) {
+    if (target === 'mask:base') return { get: function () { return state.pattern_mask; }, set: function (v) { state.pattern_mask = v; }, name: 'the main pattern' };
+    var k = Number(target.split(':')[1]), e = (state.effects || [])[k];
+    if (!e) return null;
+    return { get: function () { return e.mask; }, set: function (v) { e.mask = v; }, name: 'pattern ' + (k + 2) };
+  }
+  function brushTargetOK() {
+    if (!brush.on) return true;
+    if (brush.target === 'sculpt') return !state.stack;
+    if (brush.target === 'cage') return !!state.cage_on && !state.stack;
+    if (brush.target === 'mask:base') return state.pattern_where === 'PAINT';
+    var e = (state.effects || [])[Number(brush.target.split(':')[1])];
+    return !!e && e.where === 'PAINT';
+  }
+  function markBrushButtons() {
+    function mark(el, on) { if (el) el.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    mark(document.getElementById('sculptBtn'), brush.on && brush.target === 'sculpt');
+    mark(document.getElementById('cageBtn'), brush.on && brush.target === 'cage');
+    document.querySelectorAll('.paintbtn').forEach(function (b) { mark(b, brush.on && brush.target === 'mask:' + b.dataset.paint); });
+  }
+  function startBrush(target) {
+    if (brush.on) stopBrush(true);
+    brush.on = true; brush.target = target; brush.grid = null;
+    brush.kind = target === 'sculpt' ? 'sculpt' : (target === 'cage' ? 'cage' : 'mask');
+    brush.tool = (BRUSH_TOOLS[brush.kind][0] || [''])[0];
+    if (state.view !== 'SHAPE') {                         // the brush needs the solid piece to land on
+      brush.prevView = state.view; state.view = 'SHAPE';
+      document.querySelectorAll('#viewmode button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === 'SHAPE'); });
+    } else brush.prevView = null;
+    ctrl0 = { L: controls.mouseButtons.LEFT, R: controls.mouseButtons.RIGHT, T1: controls.touches.ONE, T2: controls.touches.TWO };
+    controls.mouseButtons.LEFT = -1; controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE;   // left button / one finger = the brush
+    controls.touches.ONE = -1; controls.touches.TWO = THREE.TOUCH.DOLLY_ROTATE;           // right button / two fingers turn the piece
+    var bar = document.getElementById('brushbar'), tools = document.getElementById('bbTool');
+    var ref = brush.kind === 'mask' ? maskRef(target) : null;
+    document.getElementById('bbTitle').textContent = brush.kind === 'sculpt' ? 'Push and pull' : (brush.kind === 'cage' ? 'Cage' : 'Paint ' + (ref ? ref.name : 'pattern'));
+    tools.innerHTML = '';
+    BRUSH_TOOLS[brush.kind].forEach(function (t) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = t[1]; b.dataset.v = t[0];
+      b.setAttribute('aria-pressed', t[0] === brush.tool);
+      b.addEventListener('click', function () { brush.tool = t[0]; tools.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === brush.tool); }); });
+      tools.appendChild(b);
+    });
+    tools.style.display = BRUSH_TOOLS[brush.kind].length ? '' : 'none';
+    document.getElementById('bbSizeRow').style.display = document.getElementById('bbStrRow').style.display = brush.kind === 'cage' ? 'none' : '';
+    document.getElementById('bbRingRow').style.display = brush.kind === 'cage' ? '' : 'none';
+    document.getElementById('bbHintShort').textContent = brush.kind === 'cage' ? 'Drag a dot. Two fingers turn the piece.' : 'One finger brushes. Two fingers turn the piece.';
+    var turn = 'Turn the piece with the right mouse button or two fingers.';
+    document.getElementById('bbHint').textContent = brush.kind === 'cage'
+      ? 'Drag a dot out or in to bulge or pinch the wall. Dots on the top ring also go up and down. If a dot faces you straight on, turn the piece so you see it from the side. ' + turn
+      : (brush.kind === 'sculpt' ? 'Brush over the piece. The smallest brush is 6 mm, about two clay lines: finer dents can\u2019t print. ' + turn
+        : 'Brush over the piece where the pattern should go. Painted areas show in blue. ' + turn);
+    bar.hidden = false; view.classList.add('brushing'); document.body.classList.add('brushing');
+    markBrushButtons(); applyView(); preview();
+    if (window.innerWidth <= 820) {             // phones: the controls are below the picture, so bring the picture up
+      setTimeout(function () { resize(); view.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 30);
+    }
+  }
+  function stopBrush(quiet) {
+    if (!brush.on) return;
+    commitGrid();
+    brush.on = false; brush.grid = null; cageDrag = null; stroke = null;
+    if (ctrl0) { controls.mouseButtons.LEFT = ctrl0.L; controls.mouseButtons.RIGHT = ctrl0.R; controls.touches.ONE = ctrl0.T1; controls.touches.TWO = ctrl0.T2; }
+    if (brush.prevView) {
+      state.view = brush.prevView; brush.prevView = null;
+      document.querySelectorAll('#viewmode button').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.v === state.view); });
+    }
+    document.getElementById('brushbar').hidden = true;
+    view.classList.remove('brushing', 'over-dot', 'dragging-dot'); document.body.classList.remove('brushing');
+    setTimeout(resize, 30);
+    if (cursor) cursor.visible = false;
+    if (cageGroup) { scene.remove(cageGroup); cageGroup = null; }
+    markBrushButtons();
+    if (!quiet) { preview(); applyView(); }
+  }
+  document.getElementById('bbDone').addEventListener('click', function () { stopBrush(); });
+  document.getElementById('bbUndo').addEventListener('click', function () { undo(); });
+  document.getElementById('bbMirror').addEventListener('change', function (e) { brush.mirror = e.target.checked; });
+  document.getElementById('bbRing').addEventListener('change', function (e) { brush.ring = e.target.checked; });
+  var bbSize = document.getElementById('bbSize'), bbStr = document.getElementById('bbStr');
+  function bbLabels() { document.getElementById('bbSizeV').textContent = brush.size + ' mm'; document.getElementById('bbStrV').textContent = brush.str; }
+  bbSize.value = brush.size; bbStr.value = brush.str; bbLabels();
+  bbSize.addEventListener('input', function () { brush.size = Number(bbSize.value); bbLabels(); });
+  bbStr.addEventListener('input', function () { brush.str = Number(bbStr.value); bbLabels(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && brush.on && !tipFor) stopBrush(); });
+
+  // the grid being brushed, as floats (kept between dabs so small dabs add up exactly)
+  function brushGrid() {
+    if (brush.grid) return brush.grid;
+    var str = brush.kind === 'sculpt' ? state.sculpt : (maskRef(brush.target) || { get: function () { return null; } }).get();
+    brush.grid = G.decode(str, brush.kind === 'sculpt') || G.make();
+    return brush.grid;
+  }
+  function commitGrid() {
+    if (!brush.grid) return;
+    if (brush.kind === 'sculpt') state.sculpt = G.encode(brush.grid, true);
+    else if (brush.kind === 'mask') { var r = maskRef(brush.target); if (r) r.set(G.encode(brush.grid, false)); }
+  }
+  // tint where a pattern is painted, so you can see it even before the pattern shows
+  function maskColors(sh, skin, K) {
+    var ref = maskRef(brush.target), g = ref ? G.decode(ref.get(), false) : null, n = skin.n, out = new Float32Array(skin.verts.length * 3);
+    var wall = skin.verts.length - 1;
+    for (var v = 0; v < skin.verts.length; v++) {
+      var m = 0;
+      if (g && v < wall) m = Math.max(0, Math.min(1, G.sample(g, (v % n) / n, skin.verts[v][2] / K / sh.Hb)));
+      m *= 0.75;
+      out[v * 3] = pieceColor.r + m * (glazeColor.r - pieceColor.r); out[v * 3 + 1] = pieceColor.g + m * (glazeColor.g - pieceColor.g);
+      out[v * 3 + 2] = pieceColor.b + m * (glazeColor.b - pieceColor.b);
+    }
+    return out;
+  }
+  var ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), stroke = null, pointers = {}, fastQ = false;
+  function pointerRay(e) {
+    var r = renderer.domElement.getBoundingClientRect();
+    ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+  }
+  function hitPiece(e) {
+    if (!pieceMesh || !pieceMesh.visible) return null;
+    pointerRay(e);
+    var h = ray.intersectObject(pieceMesh)[0];
+    if (!h || !h.face) return null;
+    var ud = pieceMesh.userData, pos = pieceMesh.geometry.attributes.position, best = -1, bd = Infinity;
+    [h.face.a, h.face.b, h.face.c].forEach(function (vi) {
+      var d = Math.pow(pos.getX(vi) - h.point.x, 2) + Math.pow(pos.getY(vi) - h.point.y, 2) + Math.pow(pos.getZ(vi) - h.point.z, 2);
+      if (d < bd) { bd = d; best = vi; }
+    });
+    if (best < 0 || best >= ud.nv - 1) return null;                       // the middle of the foot
+    var zf = h.point.y / curK;                                              // three's Y is the printer's Z (printed mm)
+    return { point: h.point, normal: h.face.normal, s: (best % ud.n) / ud.n, t: zf / curShape.Hb, z: zf };
+  }
+  function perimeterAt(z) {
+    var sh = curShape, L = 0, prev = null;
+    for (var i = 0; i <= 64; i++) { var q = sh._smooth(Math.round(i / 64 * sh.n) % sh.n, z); if (prev) L += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q; }
+    return Math.max(L, 1);
+  }
+  function requestFast() {
+    if (fastQ) return; fastQ = true;
+    requestAnimationFrame(function () { fastQ = false; commitGrid(); preview(true); });
+  }
+  function dab(e) {
+    var hit = hitPiece(e); if (!hit || !curShape) return;
+    if (stroke.last && stroke.last.distanceTo(hit.point) < brush.size * curK * 0.2) return;   // space the dabs out evenly
+    stroke.last = hit.point.clone();
+    var g = brushGrid(), rs = brush.size / perimeterAt(hit.z), rt = brush.size / curShape.Hb, ch = false;
+    // mirror: the same dab on the other side. Point 0 of the outline is the front, so left and right swap s for 1 - s.
+    var spots = [hit.s];
+    if (brush.mirror) { var ms = (1 - hit.s) % 1, gap = Math.min(Math.abs(ms - hit.s), 1 - Math.abs(ms - hit.s)); if (gap > rs * 0.5) spots.push(ms); }
+    spots.forEach(function (sp) {
+      if (brush.kind === 'sculpt') {
+        var L = sculptLim();
+        if (brush.tool === 'SMOOTH') ch = G.brush(g, sp, hit.t, rs, rt, 0.08 * brush.str, 'SMOOTH', -L, L) || ch;
+        else ch = G.brush(g, sp, hit.t, rs, rt, (brush.tool === 'IN' ? -1 : 1) * 0.06 * brush.str, 'ADD', -L, L) || ch;
+      } else ch = G.brush(g, sp, hit.t, rs, rt, (brush.tool === 'ERASE' ? -1 : 1) * 0.1 * brush.str, 'ADD', 0, 1) || ch;
+    });
+    if (ch) requestFast();
+  }
+  function showCursor(e) {
+    if (brush.kind === 'cage') { if (cursor) cursor.visible = false; return; }
+    var hit = hitPiece(e);
+    if (!cursor) {
+      cursor = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, depthTest: false, transparent: true, opacity: 0.9 }));
+      cursor.renderOrder = 5; scene.add(cursor);
+    }
+    cursor.material.color = (brush.tool === 'IN' || brush.tool === 'ERASE') ? new THREE.Color(cssColor('--warn')) : glazeColor;
+    if (!hit) { cursor.visible = false; render(); return; }
+    cursor.visible = true; cursor.position.copy(hit.point).addScaledVector(hit.normal, 0.6);
+    cursor.lookAt(hit.point.clone().addScaledVector(hit.normal, 10));
+    var sc = brush.size * curK; cursor.scale.set(sc, sc, sc); render();
+  }
+  var cvs = renderer.domElement;
+  cvs.addEventListener('pointerdown', function (e) {
+    if (!brush.on) return;
+    pointers[e.pointerId] = true;
+    if (Object.keys(pointers).length > 1) { endStroke(); return; }          // a second finger: let it turn the piece
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (brush.kind === 'cage') { cagePick(e); return; }
+    stroke = { last: null }; cvs.setPointerCapture(e.pointerId); dab(e); showCursor(e);
+  });
+  cvs.addEventListener('pointermove', function (e) {
+    if (!brush.on) return;
+    if (cageDrag) { cageMove(e); return; }
+    if (brush.kind === 'cage') { view.classList.toggle('over-dot', cageDotAt(e) >= 0); return; }
+    showCursor(e);
+    if (stroke) dab(e);
+  });
+  function endStroke() {
+    var had = !!stroke || !!cageDrag;
+    view.classList.remove('dragging-dot');
+    stroke = null; cageDrag = null;
+    if (had) { commitGrid(); changed(); }
+  }
+  ['pointerup', 'pointercancel'].forEach(function (ev) {
+    cvs.addEventListener(ev, function (e) { delete pointers[e.pointerId]; if (brush.on) endStroke(); });
+  });
+  cvs.addEventListener('pointerleave', function () { if (cursor && !stroke) { cursor.visible = false; render(); } });
+
+  // ---------- cage ----------
+  function periodicCR(vals, s) {
+    var N = vals.length, u = (s - Math.floor(s)) * N, i = Math.floor(u), f = u - i;
+    function at(q) { return vals[((q % N) + N) % N]; }
+    var a = at(i - 1), b = at(i), c = at(i + 1), d = at(i + 2);
+    return b + 0.5 * f * (c - a + f * (2 * a - 5 * b + 4 * c - d + f * (3 * (b - c) + d - a)));
+  }
+  // make the cage match the Rings and Dots settings, carrying over any shaping already done
+  function fitCage() {
+    if (!state.cage_on) return;
+    var NR = Math.round(state.cage_rings || 4), NP = Math.round(state.cage_points || 8), c = state.cage;
+    if (c && c.rings === NR && c.points === NP && c.scale && c.scale.length === NR * NP) return;
+    var sc = [], lf = [], r, p;
+    for (r = 0; r < NR; r++) for (p = 0; p < NP; p++) {
+      var v = 1;
+      if (c && c.scale) {
+        var t = r / (NR - 1) * (c.rings - 1), r0 = Math.min(c.rings - 2, Math.floor(t)), f = t - r0;
+        var a = periodicCR(c.scale.slice(r0 * c.points, (r0 + 1) * c.points), p / NP), b = periodicCR(c.scale.slice((r0 + 1) * c.points, (r0 + 2) * c.points), p / NP);
+        v = a + f * (b - a);
+      }
+      sc.push(Math.round(v * 1000) / 1000);
+    }
+    for (p = 0; p < NP; p++) lf.push(c && c.lift ? Math.round(periodicCR(c.lift, p / NP) * 10) / 10 : 0);
+    state.cage = { rings: NR, points: NP, scale: sc, lift: lf };
+  }
+  function drawCage(sh) {
+    if (cageGroup) { scene.remove(cageGroup); cageGroup.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); cageGroup = null; }
+    cageHandles = [];
+    if (!(brush.on && brush.kind === 'cage') || !state.cage_on || !state.cage) return;
+    var c = state.cage, K = curK, H = sh.cage_handles(c.rings, c.points), pts = [], seg = [];
+    cageGroup = new THREE.Group();
+    var dotGeo = new THREE.SphereGeometry(2.6, 16, 12), dotMat = new THREE.MeshBasicMaterial({ color: glazeColor }),
+      topMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(cssColor('--warn')) }), selMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(cssColor('--ink')) });
+    H.forEach(function (h, idx) {
+      var t = toThree(h.x * K - pieceOff[0], h.y * K - pieceOff[1], h.z * K), v = new THREE.Vector3(t[0], t[1], t[2]);
+      pts.push(v);
+      var dot = new THREE.Mesh(dotGeo, cageDrag && cageDrag.idx === idx ? selMat : (h.r === c.rings - 1 ? topMat : dotMat));
+      dot.position.copy(v); dot.userData.idx = idx; cageGroup.add(dot);
+    });
+    for (var r = 0; r < c.rings; r++) for (var p = 0; p < c.points; p++) {
+      var a = pts[r * c.points + p], b = pts[r * c.points + (p + 1) % c.points];
+      seg.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      if (r < c.rings - 1) { var u = pts[(r + 1) * c.points + p]; seg.push(a.x, a.y, a.z, u.x, u.y, u.z); }
+    }
+    var lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute(seg, 3));
+    cageGroup.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: glazeColor, transparent: true, opacity: 0.7 })));
+    cageHandles = H; scene.add(cageGroup); render();
+  }
+  function toScreen(v) {
+    var q = v.clone().project(camera), r = cvs.getBoundingClientRect();
+    return [(q.x + 1) / 2 * r.width, (1 - q.y) / 2 * r.height];
+  }
+  function cageDotAt(e) {
+    if (!cageGroup) return -1;
+    pointerRay(e);
+    var hits = ray.intersectObjects(cageGroup.children.filter(function (o) { return o.isMesh; }));
+    return hits.length ? hits[0].object.userData.idx : -1;
+  }
+  function cagePick(e) {
+    var idx = cageDotAt(e); if (idx < 0) return;
+    var h = cageHandles[idx], c = state.cage, K = curK, P = cageGroup.children.filter(function (o) { return o.isMesh && o.userData.idx === idx; })[0].position.clone();
+    view.classList.add('dragging-dot');
+    var radial = new THREE.Vector3(h.nx * K, 0, -h.ny * K), up = new THREE.Vector3(0, K, 0), s0 = toScreen(P), a = toScreen(P.clone().add(radial)), b = toScreen(P.clone().add(up));
+    // which dots move: this one, its mirror image across the front, or the whole ring
+    var ps = [h.p];
+    if (brush.ring) { ps = []; for (var q = 0; q < c.points; q++) ps.push(q); }
+    else if (brush.mirror) { var mp = (c.points - h.p) % c.points; if (mp !== h.p) ps.push(mp); }
+    cageDrag = { idx: idx, x0: e.clientX, y0: e.clientY, sr: [a[0] - s0[0], a[1] - s0[1]], su: [b[0] - s0[0], b[1] - s0[1]],
+      scale0: c.scale.slice(), lift0: c.lift.slice(), R: Math.max(5, h.R), top: h.r === c.rings - 1, p: h.p, r: h.r, ps: ps };
+    cvs.setPointerCapture(e.pointerId);
+    drawCage(curShape);
+  }
+  function cageMove(e) {
+    var d = cageDrag, dx = e.clientX - d.x0, dy = e.clientY - d.y0, sr = d.sr, su = d.su, A, B = 0, lim = cageLim(), c = state.cage;
+    var lr = Math.hypot(sr[0], sr[1]), lu = Math.hypot(su[0], su[1]);
+    function proj(v) { var l2 = v[0] * v[0] + v[1] * v[1]; return l2 > 1e-9 ? (dx * v[0] + dy * v[1]) / l2 : 0; }
+    if (d.top) {                       // top ring: out/in and up/down together
+      var det = sr[0] * su[1] - sr[1] * su[0];
+      if (Math.abs(det) > 0.2 * lr * lu) { A = (dx * su[1] - dy * su[0]) / det; B = (sr[0] * dy - sr[1] * dx) / det; }
+      else { A = proj(sr); B = proj(su); }
+    } else A = lr < 0.3 * lu ? proj(su) : proj(sr);   // a dot facing you: drag up to bulge, down to pinch
+    d.ps.forEach(function (p) {
+      var j = d.r * c.points + p;
+      c.scale[j] = Math.round(Math.min(lim.hi, Math.max(lim.lo, d.scale0[j] + A / d.R)) * 1000) / 1000;
+      if (d.top) c.lift[p] = Math.round(Math.min(lim.up, Math.max(lim.dn, d.lift0[p] + B)) * 10) / 10;
+    });
+    requestFast();
+  }
+  function freeInfo(sh) {
+    var si = document.getElementById('sculptInfo'), ci = document.getElementById('cageInfo');
+    if (si) {
+      var g = G.decode(state.sculpt, true), mx = 0, mn = 0;
+      if (g) for (var i = 0; i < g.length; i++) { if (g[i] > mx) mx = g[i]; if (g[i] < mn) mn = g[i]; }
+      si.textContent = g ? 'Sculpted: up to ' + mx.toFixed(1) + ' mm out and ' + (-mn).toFixed(1) + ' mm in, after firing. The most is ' + sculptLim() + ' mm' + (TEACHER ? '.' : ' for students.') : 'Nothing sculpted yet.';
+    }
+    if (ci) {
+      var lim = cageLim();
+      ci.textContent = !state.cage_on ? '' : (sh.lift ? 'The rim now runs from ' + Math.round(Math.min.apply(null, rimHeights(sh))) + ' to ' + Math.round(sh.H) + ' mm high, after firing. ' : '') +
+        'Dots can widen the wall from ' + Math.round(lim.lo * 100) + '% to ' + Math.round(lim.hi * 100) + '%, and move the rim ' + (-lim.dn) + ' mm down or ' + lim.up + ' mm up.';
+    }
+  }
+  function rimHeights(sh) { var o = []; for (var i = 0; i < sh.n; i += 4) o.push(sh.rim(i)); return o; }
+
   // ---------- compute ----------
   function k() { return 1 / (1 - (state.shrink || 0) / 100); }
   function spec() {
@@ -3444,7 +4182,14 @@ var ClayShapes = (function () {
       rim: state.rim, tilt: state.tilt, drop: state.drop, tab_h: state.tab_h, wave_n: state.wave_n, wave_d: state.wave_d,
       stack: !!state.stack, stack_clear: state.stack_clear, stack_depth: state.stack_depth, stack_lw: state.LineW / k(),
       handle: !!state.handle && handleable(), handle_top: state.handle_top, handle_bot: state.handle_bot, handle_reach: state.handle_reach,
-      handle_w: state.handle_w, handle_lines: state.handle_lines, handle_lw: state.LineW / k() };
+      handle_w: state.handle_w, handle_lines: state.handle_lines, handle_lw: state.LineW / k(),
+      // Clay Studio extras (not in the Grasshopper files)
+      oval: state.oval, pattern_seed: state.pattern_seed, pattern_where: state.pattern_where,
+      pattern_mask: state.pattern_where === 'PAINT' ? state.pattern_mask : null,
+      effects: (state.effects || []).map(function (e) {
+        return { kind: e.kind, depth: e.depth, repeats: e.repeats, pitch: e.pitch, seed: e.seed, where: e.where, mask: e.where === 'PAINT' ? e.mask : null };
+      }),
+      sculpt: state.sculpt, cage: state.cage_on ? state.cage : null };
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.BaseLayers,
@@ -3495,7 +4240,8 @@ var ClayShapes = (function () {
   function restore(sn) {
     var o = JSON.parse(sn), view = state.view;
     restoring = true;
-    presetKey = o.p; state = o.s; state.view = view; selDot = -1;
+    presetKey = o.p; state = Object.assign(clone(FREE_DEFAULTS), o.s); state.view = view; selDot = -1;
+    if (brush.on) { brush.grid = null; if (!brushTargetOK()) stopBrush(true); }
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === presetKey); });
     applyLimits(); syncAll(); changed(true); updDotBtn();
     restoring = false;
@@ -3519,9 +4265,11 @@ var ClayShapes = (function () {
     else if ((k === 'z' && e.shiftKey) || k === 'y') { e.preventDefault(); redo(); }
   });
   var RESET_KEYS = {
-    size: ['outline', 'width', 'height', 'lobes', 'lobe_depth', 'length', 'tip_width', 'twist'],
+    size: ['outline', 'width', 'height', 'lobes', 'lobe_depth', 'length', 'tip_width', 'twist', 'oval'],
     profile: ['profile'],
-    pattern: ['pattern', 'depth', 'repeats', 'pitch', 'fade_top', 'fade_bottom'],
+    pattern: ['pattern', 'depth', 'repeats', 'pitch', 'fade_top', 'fade_bottom', 'pattern_where', 'pattern_mask', 'pattern_seed', 'effects'],
+    sculpt: ['sculpt'],
+    cage: ['cage', 'cage_rings', 'cage_points'],
     rim: ['rim', 'tilt', 'drop', 'tab_h', 'wave_n', 'wave_d'],
     bead: ['bead', 'bead_amt', 'bead_n'],
     stack: ['stack_clear', 'stack_depth'],
@@ -3536,7 +4284,10 @@ var ClayShapes = (function () {
         if (p[k] !== undefined) state[k] = p[k];
         else if (beadDefaults[k] !== undefined) state[k] = beadDefaults[k];
         else if (HANDLE_DEFAULTS[k] !== undefined) state[k] = HANDLE_DEFAULTS[k];
+        else if (k in FREE_DEFAULTS) state[k] = clone(FREE_DEFAULTS)[k];
       });
+      if (which === 'cage' && state.cage_on) fitCage();
+      if (brush.on) { brush.grid = null; if (!brushTargetOK()) stopBrush(true); }
       selDot = -1; applyLimits(); syncAll(); changed(); updDotBtn();
     });
   });
@@ -3546,6 +4297,7 @@ var ClayShapes = (function () {
   });
 
   function changed(now) {
+    fitCage();
     scheduleHistory();
     clearTimeout(tPrev); clearTimeout(tSlice);
     showHide();
@@ -3553,10 +4305,11 @@ var ClayShapes = (function () {
     setStatus(null, 'Checking…');
     tSlice = setTimeout(slice, now ? 50 : 450);
   }
-  function preview() {
+  function preview(fast) {
     try {
       var sh = new S.Shape(spec(), 320), K = k();
-      if (!TEACHER && state.pattern !== 'NONE') {          // each repeat needs at least 10 mm of wall at the narrowest point
+      repMax = 60;
+      if (!fast && !TEACHER && (state.pattern !== 'NONE' || (state.effects || []).length)) {          // each repeat needs at least 10 mm of wall at the narrowest point
         var per = Infinity;
         for (var zz = 0; zz <= sh.Hb; zz += sh.Hb / 12) {
           var L2 = 0, prev = null;
@@ -3565,6 +4318,10 @@ var ClayShapes = (function () {
         }
         var maxR = Math.max(4, Math.floor(per / 10));
         setRange('repeats', 4, maxR);
+        repMax = maxR;
+        var clampE = false;
+        (state.effects || []).forEach(function (e) { if (e.repeats > maxR) { e.repeats = maxR; clampE = true; } });
+        if (clampE) { renderEffects(); sh = new S.Shape(spec(), 320); }
         if (numEls.repeats[0].value != state.repeats) { numEls.repeats[0].value = state.repeats; numEls.repeats[1].value = state.repeats; sh = new S.Shape(spec(), 320); }
       }
       var bf = beadFn(sh), skin = sh.skin_mesh(bf ? (state.LayerH || 1) / K : 1.0, K); skin.n = sh.n;
@@ -3578,9 +4335,11 @@ var ClayShapes = (function () {
           skin.verts[vi] = [vx[0] + vx[0] / r * dd, vx[1] + vx[1] / r * dd, zz2];
         }
       }
-      setPiece(skin);
+      if (brush.on && brush.kind === 'mask') skin.colors = maskColors(sh, skin, K);
+      setPiece(skin, fast);
       setHandle(sh.handle ? sh.handle_mesh(K) : null);
-      if (dragging < 0) drawSilhouette();
+      curShape = sh; curK = K; drawCage(sh); freeInfo(sh);
+      if (dragging < 0 && !fast) drawSilhouette();
       var f = function (v) { return Math.round(v); };
       var si = document.getElementById('stackInfo');
       if (state.stack) {
@@ -3838,10 +4597,14 @@ var ClayShapes = (function () {
       FirstSpeed: 'Speed for the first layer only, so the base settles evenly on the plate.',
       MaxStep: 'How far each layer may lean out past the one below, as a share of the line width, before the page warns. Students are held to ' + STUDENT_STEP + '%.',
       wall: 'Wall thickness of the plastic STL model.',
+      oval: 'How deep the oval is from front to back, as a share of its width. 1 makes it round again.',
+      pattern_seed: 'Coral is laid out at random. Each Variant number gives a different layout with branches the same size, so you can try a few and come back to the one you like.',
+      cage_rings: 'How many heights have a ring of dots, from the foot to the rim. More rings let you shape more detail up the wall.',
+      cage_points: 'How many dots go around each ring. More dots let you shape more detail around the piece. Changing this keeps the shaping you\u2019ve done, spread over the new dots.',
       floor: 'Floor thickness of the plastic STL model.'
     },
     seg: {
-      outline: { CIRCLE: 'A round outline.', STAR: 'A star outline. Set how many points under Star points.', TEARDROP: 'A teardrop outline with a pouring spout.' },
+      outline: { CIRCLE: 'A round outline.', OVAL: 'An oval outline, wider side to side than front to back. Set how deep it is under Front to back.', STAR: 'A star outline. Set how many points under Star points.', TEARDROP: 'A teardrop outline with a pouring spout.' },
       bead: {
         STEADY: 'The same amount of clay all the way round, for a plain, even line.',
         PEARLS: 'The clay line swells and thins in a row of beads, stacked straight up the wall.',
@@ -3860,6 +4623,10 @@ var ClayShapes = (function () {
         PATH: 'The line the nozzle draws, layer by layer.',
         BOTH: 'The piece and the nozzle path together.'
       },
+      patWhere: {
+        ALL: 'The pattern covers the whole wall.',
+        PAINT: 'The pattern shows only where you paint it on the piece, and fades out softly at the edges. Choosing this opens the paint brush.'
+      },
       fdm: {
         WALLED: 'A hollow cup with real walls and a floor. Works with any plastic printer.',
         VASE: 'A solid shape for the slicer\u2019s vase mode, which prints only the outer wall.'
@@ -3868,13 +4635,17 @@ var ClayShapes = (function () {
     pattern: {
       NONE: 'a plain wall', RIBS: 'straight ridges running up the wall', SPIRAL: 'ridges that wind around the piece as it rises',
       BANDS: 'rings around the piece', BUBBLES: 'rows of round bumps', DIAMONDS: 'a criss-cross of raised diamonds',
-      SCALLOPS: 'rounded flutes running up the wall'
+      SCALLOPS: 'rounded flutes running up the wall', WEAVE: 'strands that pass over and under each other, like a basket',
+      CORAL: 'branching ridges laid out at random (change the Variant for a different layout)'
     },
+    cage: 'Shapes the whole piece with a few dots, as well as the side shape. Each dot bulges or pinches the wall around it, and the wall blends smoothly between dots. Dots on the top ring also lift or drop the rim, which the printer builds directly with tilted layers.',
+    sculpt: 'Brush over the 3D picture to press the wall in or pull it out. Use Smooth to soften bumps that come out too sharp. Big, gentle changes print best in wet clay.',
     adaptive: 'Uses thinner layers only where the wall flares out or in, for better support and a smoother surface. Takes a little longer to print.',
     batch: 'Puts several copies of this handle in one print file, built up together layer by layer, so one plate makes a class set or spares. Off unless you turn it on, so a normal print is one handle.',
     handle: 'Adds a flat, smooth strip to one side of the piece and makes a handle to fit it, with its own print file. The handle prints lying flat, and you join it on with slip when both are leather-hard.'
   };
-  var PATTERN_NAMES = { NONE: 'Smooth', RIBS: 'Vertical ribs', SPIRAL: 'Spiral ribs', BANDS: 'Bands', BUBBLES: 'Bubbles', DIAMONDS: 'Diamonds', SCALLOPS: 'Scalloped flutes' };
+  var PATTERN_NAMES = { NONE: 'Smooth', RIBS: 'Vertical ribs', SPIRAL: 'Spiral ribs', BANDS: 'Bands', BUBBLES: 'Bubbles', DIAMONDS: 'Diamonds', SCALLOPS: 'Scalloped flutes',
+    WEAVE: 'Weave', CORAL: 'Coral' };
   var RIM_NAMES = { FLAT: 'Flat', WAVE: 'Wavy', SLOPED: 'Sloped', TABS: 'Hanger tab' };
 
   function setOff(b, why) {               // grey out a button but keep it hoverable and tappable, so it can explain itself
@@ -3897,7 +4668,7 @@ var ClayShapes = (function () {
       (where.length ? RIM_NAMES[v] + ' rims are on the ' + joinList(where) + '.' : '') ;
   }
   function beadWhy(v) {
-    if (state.pattern === 'DIAMONDS' || state.pattern === 'BUBBLES')
+    if (['DIAMONDS', 'BUBBLES', 'WEAVE', 'CORAL'].indexOf(state.pattern) >= 0)
       return 'Bead textures are off with ' + PATTERN_NAMES[state.pattern].toLowerCase() + ': the pattern already fills the wall, and the two together look muddy. Set the pattern to Smooth or Vertical ribs to use it.';
     if (state.pattern === 'SPIRAL' && v === 'KNIT')
       return 'Knit doesn\u2019t go with spiral ribs: the two textures run across each other and blur. Try Pearls or Diagonal, or set the pattern to Smooth or Vertical ribs.';
@@ -3923,6 +4694,8 @@ var ClayShapes = (function () {
     else if (key[0] === 'adaptive') { title = 'Adaptive layers'; body = '<p>' + TIPS.adaptive + '</p>'; }
     else if (key[0] === 'batch') { title = 'Several handles at once'; body = '<p>' + TIPS.batch + '</p>'; }
     else if (key[0] === 'handle') { title = 'Handle'; body = '<p>' + TIPS.handle + '</p>'; }
+    else if (key[0] === 'cage') { title = 'Cage'; body = '<p>' + TIPS.cage + '</p>'; }
+    else if (key[0] === 'sculpt') { title = 'Push and pull'; body = '<p>' + TIPS.sculpt + '</p>'; }
     if (el.dataset.why) body += '<p class="why"><b>Why it\u2019s greyed out</b>' + el.dataset.why + '</p>';
     return title || body ? '<b>' + title + '</b>' + body : '';
   }
