@@ -80,7 +80,8 @@ table.profile td:last-child { width: 30px; }
 
 main { position: relative; display: grid; grid-template-rows: 1fr auto; min-height: 0; }
 #view { position: relative; min-height: 320px; background: var(--view); overflow: hidden; }
-#view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
+.status.checking .metrics, .status.checking ul, .status.checking details { opacity: .45; }
 .viewbar { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
 .viewbar .seg { margin: 0; background: var(--panel); }
 .player { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px 3px 4px; }
@@ -3596,7 +3597,8 @@ var ClayShapes = (function () {
   }
   function resize() {
     var w = view.clientWidth, h = view.clientHeight;
-    renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); render();
+    renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+    renderer.render(scene, camera);           // same frame as the resize, so there's no blank flash
   }
   var rq = false;
   function render() { if (rq) return; rq = true; requestAnimationFrame(function () { rq = false; renderer.render(scene, camera); }); }
@@ -4336,7 +4338,7 @@ var ClayShapes = (function () {
         }
       }
       if (brush.on && brush.kind === 'mask') skin.colors = maskColors(sh, skin, K);
-      setPiece(skin, fast);
+      setPiece(skin, fast || brush.on);       // while brushing, don't re-centre the piece under the brush
       setHandle(sh.handle ? sh.handle_mesh(K) : null);
       curShape = sh; curK = K; drawCage(sh); freeInfo(sh);
       if (dragging < 0 && !fast) drawSilhouette();
@@ -4505,7 +4507,14 @@ var ClayShapes = (function () {
   }
   function setStatus(res, msg) {
     var el = document.getElementById('status');
-    if (!res) { el.innerHTML = '<div class="headline"><span class="state">' + esc(msg) + '</span></div>'; return; }
+    if (!res) {
+      // While checking, keep the last result on screen (dimmed) and change only the headline, so the bar keeps
+      // its height. If it shrank and grew back, the 3D view would resize twice and flash on every change.
+      var st = el.querySelector('.headline .state');
+      if (st && el.dataset.filled) { st.textContent = msg; st.className = 'state'; el.classList.add('checking'); return; }
+      el.innerHTML = '<div class="headline"><span class="state">' + esc(msg) + '</span></div>'; return;
+    }
+    el.classList.remove('checking'); el.dataset.filled = '1';
     if (!res.ok) { document.getElementById('dlG').disabled = true; el.innerHTML = '<div class="headline"><span class="state warn">Not printable yet</span></div><ul><li>' + esc(res.info) + '</li></ul>'; return; }
     var w = (res.warnings || []).slice(), blk = blocked(res);
     if (overBarrel(res)) w.unshift('BARREL: needs about ' + Math.round(res.clay_ml) + ' ml of clay');
