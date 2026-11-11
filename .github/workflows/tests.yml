@@ -1,0 +1,31 @@
+# Runs the Clay Studio checks on every push. They report a tick or a cross on the commit;
+# they don't control the GitHub Pages site, which updates either way.
+name: Clay Studio tests
+on: [push, pull_request]
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Same G-code for every starting shape
+        run: node tests/golden.js index.html
+      - name: Shape checks
+        run: node tests/shapes.js index.html
+      - name: 300 random designs
+        run: node tests/fuzz.js index.html 300
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install a test browser
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+      - name: The page works in a browser
+        run: python3 tests/ui_smoke.py index.html
