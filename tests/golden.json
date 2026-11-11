@@ -1,0 +1,58 @@
+{
+ "_note": "Nov 10 2026: recorded with the initials AB. POURING moved by at most 0.001 mm (last printed digit) when rim() was made exact; nothing else changed since the Nov 9 audit.",
+ "ESPRESSO": {
+  "sha256": "bdc183a69f01867e71e5e92b7aaac17c0285c9e3ae1fe8b9c8377a694cb013bc",
+  "lines": 17702,
+  "ml": 46
+ },
+ "CAPPUCCINO": {
+  "sha256": "8f5a581fc5b6588d3a560fc19eb01eeff4cb9fd5df7d9a3744be9da7c5a2746f",
+  "lines": 33349,
+  "ml": 77
+ },
+ "POURING": {
+  "sha256": "d89f0d75cb6c996ecf0e90cd7527201608fcbf12a15053d04fcde7c888acb38a",
+  "lines": 32840,
+  "ml": 63
+ },
+ "BOWL": {
+  "sha256": "1f24cd9953c174e54945ecbee3ff8befab0402ce60f3476880ba64427e9812ac",
+  "lines": 26208,
+  "ml": 59
+ },
+ "TUMBLER": {
+  "sha256": "0b8a6384e8240d3eefb5cfb33a1ba10e9848a8a0487b51cd0cf90b229b88aef3",
+  "lines": 36055,
+  "ml": 95
+ },
+ "TEALIGHT": {
+  "sha256": "3cac5a60a94c570ba9c194a8585598aab2353390570b013435ce3e73351c0453",
+  "lines": 19956,
+  "ml": 47
+ },
+ "TULIP": {
+  "sha256": "629932a9ebc5bc320bb8347c7297427fd1fd4debaefad780e18a14b12e0076c5",
+  "lines": 59772,
+  "ml": 98
+ },
+ "VASE": {
+  "sha256": "632bc21b5aa725732ec9b284cf3e2f220b711a9b2bfe0c00e1f655e191b6809d",
+  "lines": 52309,
+  "ml": 148
+ },
+ "STACK": {
+  "sha256": "ced9b84ab17c666a4861c17c764e67ac8cd3f2f3c6b9afeccd6cffcbf009e51c",
+  "lines": 28921,
+  "ml": 74
+ },
+ "MUG": {
+  "sha256": "bdc72cf7d6a8a63385690a9c7b365020b7fa9e09054f683d7efae5c5c26fb339",
+  "lines": 44084,
+  "ml": 114
+ },
+ "ORNAMENT": {
+  "sha256": "9e35f102291be979f5ea4052104b39e8d6f7438e5164be7320c1f9f1998e5681",
+  "lines": 18333,
+  "ml": 49
+ }
+}

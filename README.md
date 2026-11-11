@@ -40,7 +40,7 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 
 **Outlines:** round, star and spout. Advanced settings also offer an oval.
 
-**Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming.
+**Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming. A rim that climbs steeply gets a note to watch that the nozzle doesn't brush the high side. One that climbs more steeply than 60° can't be printed and is refused, in advanced settings too. For students, the wave and tab sliders stop just short of that: a narrow rim or more waves means a shallower dip.
 
 Every shape has built-in limits that keep designs printable. If a change would make the wall lean too far for wet clay, or the piece would need more than one barrel of clay, the page says so in plain language and the save button turns off until it's fixed.
 
@@ -48,7 +48,7 @@ Every shape has built-in limits that keep designs printable. If a change would m
 
 1. Open the link above in Safari, Chrome or Edge.
 2. Choose a starting shape at the top.
-3. Adjust the size, side shape, freeform shaping, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to.
+3. Adjust the size, side shape, freeform shaping, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to. Your design is saved in the browser as you work, so if the page reloads you can pick up where you left off. On a shared computer, press **Start fresh** to clear the last person's design.
 4. Optionally, add up to 3 initials for the bottom.
 5. Use **Watch it print** to see the nozzle build the piece layer by layer.
 6. When the bar under the picture says **Ready to print**, click **Save the print file**.
@@ -90,6 +90,10 @@ The core shapes and print settings have been printed many times. These newer fea
 ## Working offline
 
 The page is one self-contained file. If the internet is down, download `index.html`, then double-click it to open it in a browser. Everything works the same, except the page uses the system font instead of its usual typeface.
+
+## Tests
+
+The `tests` folder checks the slicer and shapes on every change (see `tests/README.md`). GitHub runs the checks after each commit and shows a tick or a cross next to it. They don't stop the site from updating.
 
 ## Updating the site
 

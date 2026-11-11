@@ -150,6 +150,10 @@ body:not(.teacher) .teacher-only { display: none !important; }
 @keyframes tipIn { from { opacity: 0; } }
 /* freeform shaping, extra pattern layers and the on-piece brush */
 h3.sub { font-size: 15px; margin: 14px 0 2px; }
+.note.warnnote { color: var(--warn); }
+.restored { border: 1px solid var(--glaze); border-radius: 10px; padding: 8px 12px; margin: 8px 0 4px; background: var(--bg); }
+.restored p { margin: 0 0 4px; font-size: 14px; }
+.restored[hidden] { display: none; }
 .btnrow { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .btnrow .secondary { flex: 1; padding: 7px 10px; }
 .secondary[aria-pressed="true"] { background: var(--glaze); color: var(--glaze-ink); border-color: var(--glaze); }
@@ -222,6 +226,10 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <button id="undoBtn" title="Undo (⌘Z / Ctrl+Z)">↶ Undo</button>
         <button id="redoBtn" title="Redo (⇧⌘Z / Ctrl+Y)">Redo ↷</button>
         <button id="startOver" title="Put everything back to the starting shape">Start over</button>
+      </div>
+      <div class="restored" id="restored" role="status" hidden>
+        <p id="restoredMsg"></p>
+        <div class="btnrow"><button type="button" class="secondary" id="startFresh">Start fresh</button><button type="button" class="secondary" id="keepGoing">Keep going</button></div>
       </div>
       <p class="intro">Pick a starting shape at the top, then adjust it below. The picture updates as you go, and the bar under it tells you when the piece is ready to print.</p>
       <p class="intro">To see what a setting does, hover over it or tap its <b>?</b>. Greyed-out options don’t go with this shape or pattern: hover over or tap one to find out why.</p>
@@ -346,10 +354,12 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <div class="only-wave">
           <div data-num="wave_n" data-label="High points around the rim" data-min="2" data-max="8" data-step="1"></div>
           <div data-num="wave_d" data-label="Dip between high points" data-unit="mm" data-min="4" data-max="30" data-step="1"></div>
+          <p class="note warnnote" id="waveCap" hidden></p>
           <p class="note">The rim rises and falls like a tulip. The printer builds the waves directly, so there’s no trimming. On a star shape, the high points sit on the flutes when the number of points divides evenly by them (12 points: 2, 3, 4 or 6 high points).</p>
         </div>
         <div class="only-tabs">
           <div data-num="tab_h" data-label="Tab height" data-unit="mm" data-min="4" data-max="15" data-step="1"></div>
+          <p class="note warnnote" id="tabCap" hidden></p>
           <p class="note">Two tabs rise from the rim. Punch a hole through each when leather-hard, for a string or wire.</p>
         </div>
         <button class="reset" data-reset="rim">Reset rim</button>
@@ -2832,12 +2842,17 @@ var ClayShapes = (function () {
     this.Atot = this.layers.reduce(function (a, L) { return a + Math.abs(L.A); }, 0);
     // Sculpting and the cage leave stacking pieces alone: the foot and rim have to match exactly.
     this.sculpt = this.stack ? null : grid_decode(spec.sculpt, true);
-    this.cage = null; this.lift = false; this.liftTilt = 0;
+    if (this.sculpt) {                    // smooth sampling can overshoot between strong dabs: keep within what was brushed
+      this._sclo = 0; this._schi = 0;
+      for (var gi = 0; gi < this.sculpt.length; gi++) { this._sclo = Math.min(this._sclo, this.sculpt[gi]); this._schi = Math.max(this._schi, this.sculpt[gi]); }
+    }
+    this.cage = null; this.lift = false;
     if (!this.stack && cage_ok(spec.cage)) {
       var cg = spec.cage, NR = Math.round(cg.rings), NP = Math.round(cg.points), cv = [], cm = [], r, ii;
       for (r = 0; r < NR; r++) {
         var row = cg.scale.slice(r * NP, (r + 1) * NP).map(Number), vr = [];
-        for (ii = 0; ii < n; ii++) vr.push(periodic_cr(row, ii / n));
+        var rlo = Math.min.apply(null, row), rhi = Math.max.apply(null, row);   // smooth curves can swing past their dots
+        for (ii = 0; ii < n; ii++) vr.push(Math.min(rhi, Math.max(rlo, periodic_cr(row, ii / n))));
         cv.push(vr);
       }
       // PCHIP slopes up each column (same rule as the side shape), so the wall stays monotone between rings
@@ -2853,24 +2868,17 @@ var ClayShapes = (function () {
       var lift = (cg.lift || []).map(Number);
       if (lift.length === NP && lift.some(function (v) { return Math.abs(v) > 1e-6; })) {
         this.lift = true; this._liftI = []; this._angT = [];
-        var lmax = -Infinity, prev = null;
+        var lmax = -Infinity, prev = null, llo = Math.min.apply(null, lift), lhi = Math.max.apply(null, lift);
         for (ii = 0; ii < n; ii++) {
-          var L = periodic_cr(lift, ii / n); this._liftI.push(L); lmax = Math.max(lmax, L);
+          var L = Math.min(lhi, Math.max(llo, periodic_cr(lift, ii / n))); this._liftI.push(L); lmax = Math.max(lmax, L);
           var q = this._smooth(ii, this.Hb), an = Math.atan2(q[1], q[0]);
           if (prev !== null) { var dA = an - prev[1]; dA -= 2 * Math.PI * Math.round(dA / (2 * Math.PI)); an = prev[0] + dA; }
           prev = [an, Math.atan2(q[1], q[0])]; this._angT.push(an);
         }
         this.H = this.Htop0 + Math.max(0, lmax);
-        var rims = [], hmax = -Infinity, tmax = 0;
+        var rims = [], hmax = -Infinity;
         for (ii = 0; ii < n; ii++) { rims.push(this.rim(ii)); hmax = Math.max(hmax, rims[ii]); }
-        this.H = hmax;
-        // how steeply the rim climbs along its length: the nozzle body has to clear the high side
-        for (ii = 0; ii < n; ii++) {
-          var a1 = this.point(ii, rims[ii], false), b1 = this.point((ii + 1) % n, rims[(ii + 1) % n], false);
-          var run = hyp(b1[0] - a1[0], b1[1] - a1[1]);
-          if (run > 1e-6) tmax = Math.max(tmax, Math.abs(rims[(ii + 1) % n] - rims[ii]) / run);
-        }
-        this.liftTilt = Math.atan(tmax) * 180 / Math.PI;
+        this.H = hmax; this._rimc = null; this._tilt = undefined;   // rims were found under a provisional height
       }
     }
   }
@@ -2881,8 +2889,8 @@ var ClayShapes = (function () {
     return (2 * f3 - 3 * f2 + 1) * c.v[k][i] + (f3 - 2 * f2 + f) * h * c.m[k][i] + (-2 * f3 + 3 * f2) * c.v[k + 1][i] + (f3 - f2) * h * c.m[k + 1][i];
   };
   // the cage's rim lift at a point (x, y), found from its direction from the centre
-  Shape.prototype._lift_at = function (x, y) {
-    var T = this._angT, n = T.length, a0 = T[0], d = Math.atan2(y, x) - a0;
+  Shape.prototype._lift_at = function (x, y, turn) {
+    var T = this._angT, n = T.length, a0 = T[0], d = Math.atan2(y, x) + (turn || 0) - a0;
     d -= 2 * Math.PI * Math.floor(d / (2 * Math.PI));
     var a = a0 + d, lo = 0, hi = n;
     while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (T[mid] <= a) lo = mid; else hi = mid; }
@@ -2912,8 +2920,17 @@ var ClayShapes = (function () {
     return [x, y, nx, ny];
   };
   Shape.prototype.top_z = function (x, y) {
-    if (this.lift) return this._top0(x, y) + this._lift_at(x, y);
-    return this._top0(x, y);
+    if (!this.lift) return this._top0(x, y);
+    var b = this._top0(x, y), z = b + this._lift_at(x, y, 0);
+    if (!this.twist) return z;
+    // The lift table is laid out at full height. A rim point lower down is turned less by the twist, so look it up
+    // where its wall column sits at full height. That depends on the rim height being found, so refine it a few times.
+    for (var k = 0; k < 8; k++) {
+      var z2 = b + this._lift_at(x, y, this.twist * (1 - Math.min(1, Math.max(0, z) / this.Hb)));
+      if (Math.abs(z2 - z) < 1e-7) return z2;
+      z = z2;
+    }
+    return z;
   };
   Shape.prototype._top0 = function (x, y) {
     if (this.plane) {
@@ -2923,11 +2940,42 @@ var ClayShapes = (function () {
     if (this.waveN && this.waveD) return this.Hb - this.waveD * (1 - Math.cos(this.waveN * (Math.atan2(y, x) - this.wavePhase))) / 2;
     return this.Htop0;
   };
+  // Height of the rim on wall column i: the lowest place the wall meets the top, found the way the slicer finds it
+  // (walk up the column, then narrow down the crossing). The old shortcut ("height -> wall point -> rim height there",
+  // four times) doesn't settle on steep wavy rims with twist, because turning the wall moves it along the wave:
+  // on a tulip with 8 waves 30 mm deep it was off by 24 mm, so the preview showed a different rim from the print.
   Shape.prototype.rim = function (i, inset) {
     if (!this.plane && !this.T && !(this.waveN && this.waveD) && !this.lift) return this.H;
-    var z = this.H;
-    for (var k = 0; k < 4; k++) { var p = this._smooth(i, z, inset || 0); z = Math.min(this.H, this.top_z(p[0], p[1])); }
+    inset = inset || 0;
+    if (!inset && this._rimc && this._rimc[i] === this._rimc[i]) return this._rimc[i];
+    var self = this, H = this.H;
+    function g(z) { var p = self._smooth(i, z, inset); return Math.min(H, self.top_z(p[0], p[1])) - z; }
+    var z = 0, za = 0, ga = g(0);
+    if (ga > 0) {
+      var N = Math.max(16, Math.ceil(H)), zb = H;        // 1 mm steps up the column
+      for (var k = 1; k <= N; k++) {
+        var z1 = H * k / N, g1 = g(z1);
+        if (g1 <= 0) { zb = z1; break; }
+        za = z1; ga = g1;
+      }
+      for (var it = 0; it < 30; it++) { var zm = 0.5 * (za + zb); if (g(zm) > 0) za = zm; else zb = zm; }
+      z = 0.5 * (za + zb);
+    }
+    if (!inset) { if (!this._rimc) { this._rimc = new Float64Array(this.n); this._rimc.fill(NaN); } this._rimc[i] = z; }
     return z;
+  };
+  // How steeply the rim climbs at its steepest, in degrees, measured along the path the nozzle takes round it
+  // (rise between neighbouring rim points over the distance between them). Flat rims: 0.
+  Shape.prototype.rim_tilt = function () {
+    if (this._tilt !== undefined) return this._tilt;
+    if (!this.plane && !this.T && !(this.waveN && this.waveD) && !this.lift) return (this._tilt = 0);
+    var n = this.n, r = [], P = [], i, best = 0;
+    for (i = 0; i < n; i++) { r.push(this.rim(i)); P.push(this.point(i, r[i], false)); }
+    for (i = 0; i < n; i++) {
+      var j = (i + 1) % n, run = hyp(P[j][0] - P[i][0], P[j][1] - P[i][1]);
+      if (run > 1e-9) best = Math.max(best, Math.abs(r[j] - r[i]) / run);
+    }
+    return (this._tilt = Math.atan(best) * 180 / Math.PI);
   };
   Shape.prototype.point = function (i, z, textured, inset) {
     if (textured === undefined) textured = true;
@@ -2935,7 +2983,10 @@ var ClayShapes = (function () {
     if (this.cage || this.sculpt) {
       var qt = hz > 0 ? this._quiet(Math.atan2(sm[1], sm[0]), z, hz) : 1;      // leave the handle's flat strip alone
       if (this.cage) { var cm = 1 + (this._cage_scale(i, z / this.Hb) - 1) * qt; x *= cm; y *= cm; }
-      if (this.sculpt) { var sc = grid_sample(this.sculpt, i / this.n, z / this.Hb) * qt; x += sm[2] * sc; y += sm[3] * sc; }
+      if (this.sculpt) {
+        var sc = Math.min(this._schi, Math.max(this._sclo, grid_sample(this.sculpt, i / this.n, z / this.Hb))) * qt;
+        x += sm[2] * sc; y += sm[3] * sc;
+      }
     }
     if (textured && this.layers.length) {
       var d = 0, f = 1;
@@ -3056,7 +3107,7 @@ var ClayShapes = (function () {
   Shape.prototype.clay_top = function (k) {
     if (this.plane && !this.lift) { var P = this.plane; return [P[0] * k, P[1] * k, P[2] * k, P[3], P[4], P[5]]; }
     if (this.plane || this.T || (this.waveN && this.waveD) || this.lift) {
-      var self = this; return { f: function (x, y) { return self.top_z(x / k, y / k) * k; }, tilt: this.lift ? this.liftTilt : 0 };
+      var self = this; return { f: function (x, y) { return self.top_z(x / k, y / k) * k; }, tilt: this.rim_tilt() };
     }
     return null;
   };
@@ -4141,6 +4192,7 @@ var ClayShapes = (function () {
     else if (brush.mirror) { var mp = (c.points - h.p) % c.points; if (mp !== h.p) ps.push(mp); }
     cageDrag = { idx: idx, x0: e.clientX, y0: e.clientY, sr: [a[0] - s0[0], a[1] - s0[1]], su: [b[0] - s0[0], b[1] - s0[1]],
       scale0: c.scale.slice(), lift0: c.lift.slice(), R: Math.max(5, h.R), top: h.r === c.rings - 1, p: h.p, r: h.r, ps: ps };
+    if (cageDrag.top) cageDrag.tPrev = new S.Shape(spec(), 160).rim_tilt();
     cvs.setPointerCapture(e.pointerId);
     drawCage(curShape);
   }
@@ -4153,11 +4205,22 @@ var ClayShapes = (function () {
       if (Math.abs(det) > 0.2 * lr * lu) { A = (dx * su[1] - dy * su[0]) / det; B = (sr[0] * dy - sr[1] * dx) / det; }
       else { A = proj(sr); B = proj(su); }
     } else A = lr < 0.3 * lu ? proj(su) : proj(sr);   // a dot facing you: drag up to bulge, down to pinch
+    var keepS = c.scale.slice(), keepL = c.lift.slice();
     d.ps.forEach(function (p) {
       var j = d.r * c.points + p;
       c.scale[j] = Math.round(Math.min(lim.hi, Math.max(lim.lo, d.scale0[j] + A / d.R)) * 1000) / 1000;
       if (d.top) c.lift[p] = Math.round(Math.min(lim.up, Math.max(lim.dn, d.lift0[p] + B)) * 10) / 10;
     });
+    // a rim can only climb so steeply: if this move would go past it, stay where the last good move left it
+    if (d.top) {
+      var t = new S.Shape(spec(), 160).rim_tilt(), ci = document.getElementById('cageInfo');
+      if (t > (TEACHER ? RIM_REFUSE : RIM_STUDENT) && t > d.tPrev + 0.05) {     // moves that make it gentler are always fine
+        c.scale = keepS; c.lift = keepL;
+        if (ci) ci.textContent = 'That\u2019s as steep as the rim can climb here. Spread the rise over more dots, or lift the dots next to it too.';
+        return;
+      }
+      d.tPrev = t;
+    }
     requestFast();
   }
   function freeInfo(sh) {
@@ -4298,24 +4361,103 @@ var ClayShapes = (function () {
     loadPreset(presetKey); state.initials = keepInitials; syncAll(); changed();
   });
 
+  // ---------- autosave ----------
+  // The design is saved in this browser a second after each change, so a reload or a phone discarding the tab
+  // doesn't lose it (sculpting, painting and the cage can't be typed back in). Advanced settings are never saved:
+  // they need the code each time. If storage is blocked (private browsing, full), it quietly does nothing.
+  var SAVE_KEY = 'clayStudio.design.v1', saveTimer = null;
+  function autosave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, at: Date.now(), snap: snap() })); } catch (e) { }
+    }, 900);
+  }
+  // compare two designs by their values, not by the order their settings happen to be written in
+  function canon(sn) {
+    function sortk(v) {
+      if (Array.isArray(v)) return v.map(sortk);
+      if (v && typeof v === 'object') { var o = {}; Object.keys(v).sort().forEach(function (k) { o[k] = sortk(v[k]); }); return o; }
+      return v;
+    }
+    var o = JSON.parse(sn); o.s = Object.assign(clone(FREE_DEFAULTS), o.s); delete o.s.view;
+    return JSON.stringify(sortk(o));
+  }
+  function autoload() {
+    var rec = null;
+    try { rec = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { rec = null; }
+    if (!rec || rec.v !== 1 || !rec.snap) return false;
+    var o; try { o = JSON.parse(rec.snap); } catch (e) { return false; }
+    if (!o || !S.PRESETS[o.p] || !o.s || !o.s.profile) return false;
+    loadPreset(o.p); state.initials = o.s.initials || '';
+    var untouched = canon(snap()) === canon(rec.snap);    // nothing changed from the starting shape: no need to say anything
+    restore(rec.snap);
+    if (untouched) return true;
+    var cut = canon(snap()) !== canon(rec.snap);         // the student limits brought something back in
+    var when = new Date(rec.at || Date.now());
+    document.getElementById('restoredMsg').textContent = 'Picked up where you left off: your ' + S.PRESETS[o.p].label.toLowerCase() +
+      ' from ' + when.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) + '.' +
+      (cut ? ' Some settings were beyond the student limits, so they were brought back in.' : '');
+    document.getElementById('restored').hidden = false;
+    return true;
+  }
+  document.getElementById('startFresh').addEventListener('click', function () {
+    document.getElementById('restored').hidden = true;
+    loadPreset('ESPRESSO'); state.initials = ''; syncAll(); changed();
+  });
+  document.getElementById('keepGoing').addEventListener('click', function () { document.getElementById('restored').hidden = true; });
+
   function changed(now) {
     fitCage();
     scheduleHistory();
+    autosave();
     clearTimeout(tPrev); clearTimeout(tSlice);
     showHide();
     tPrev = setTimeout(preview, now ? 0 : 60);
     setStatus(null, 'Checking…');
     tSlice = setTimeout(slice, now ? 50 : 450);
   }
+  // ---------- how steep a rim may be ----------
+  // The nozzle body is wider than its tip. Going round a rim that climbs steeply, the body can catch the high side.
+  // Above 25 degrees the piece gets a note; above 60 it is refused for everyone (the same limit the printer engine
+  // already uses for a flat sloped rim). Students' wave and tab sliders stop just short of that, worked out from
+  // the rim as it is now: a narrow rim, or more waves, makes the same dip steeper.
+  var RIM_REFUSE = 60, RIM_STUDENT = 59.5;
+  function capRim(sh) {
+    var wc = document.getElementById('waveCap'), tc = document.getElementById('tabCap');
+    wc.hidden = tc.hidden = true;
+    var L = LIMITS[presetKey] || {};
+    if (TEACHER) return sh;
+    var key = state.rim === 'WAVE' && L.wave_d ? 'wave_d' : (state.rim === 'TABS' && L.tab_h ? 'tab_h' : null);
+    if (!key) return sh;
+    var lo = L[key][0], hi = L[key][1], tgt = Math.tan(RIM_STUDENT * Math.PI / 180), cap = hi;
+    for (var pass = 0; pass < 4; pass++) {          // steepness grows about in step with the dip or tab height
+      var t = sh.rim_tilt(), v = Number(state[key]);
+      if (!(t > 0.01) || !(v > 0)) break;
+      var est = Math.floor(v * tgt / Math.tan(t * Math.PI / 180));
+      cap = Math.max(lo, Math.min(hi, pass ? Math.min(cap, est) : est));
+      if (v <= cap && t <= RIM_STUDENT) break;
+      state[key] = cap; numEls[key][0].value = cap; numEls[key][1].value = cap;
+      sh = new S.Shape(spec(), 320);
+    }
+    setRange(key, lo, Math.max(lo, cap));
+    if (cap < hi) {
+      var el = key === 'wave_d' ? wc : tc; el.hidden = false;
+      el.textContent = key === 'wave_d'
+        ? 'This rim can dip up to ' + cap + ' mm. Any deeper and it would climb too steeply for the nozzle. For a deeper dip, use fewer high points or make the top wider.'
+        : 'Tabs can go up to ' + cap + ' mm on this piece. Any taller and their sides would be too steep for the nozzle. Make the top wider for taller tabs.';
+    }
+    return sh;
+  }
   function preview(fast) {
     try {
       var sh = new S.Shape(spec(), 320), K = k();
+      if (!fast) sh = capRim(sh);
       repMax = 60;
       if (!fast && !TEACHER && (state.pattern !== 'NONE' || (state.effects || []).length)) {          // each repeat needs at least 10 mm of wall at the narrowest point
         var per = Infinity;
         for (var zz = 0; zz <= sh.Hb; zz += sh.Hb / 12) {
           var L2 = 0, prev = null;
-          for (var ii = 0; ii <= sh.n; ii++) { var q = sh._smooth(ii % sh.n, zz); if (prev) L2 += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q; }
+          for (var ii = 0; ii <= sh.n; ii++) { var q = sh.point(ii % sh.n, zz, false); if (prev) L2 += Math.hypot(q[0] - prev[0], q[1] - prev[1]); prev = q; }
           per = Math.min(per, L2);
         }
         var maxR = Math.max(4, Math.floor(per / 10));
@@ -4358,7 +4500,13 @@ var ClayShapes = (function () {
   function slice() {
     var key = JSON.stringify([spec(), clayS(), state.shrink, state.initials, state.bead, state.bead_amt, state.bead_n, handleCount()]);
     try {
-      var sh = new S.Shape(spec(), 400), K = k();
+      var sh = new S.Shape(spec(), 400), K = k(), steep = sh.rim_tilt();
+      if (steep > RIM_REFUSE) {
+        lastRes = { ok: false, info: 'This rim climbs too steeply to print: about ' + Math.round(steep) + '\u00b0 at its steepest, and the most the nozzle can manage is ' +
+          RIM_REFUSE + '\u00b0. Use fewer high points, a smaller dip or shorter tabs, less twist, or make the top wider.' };
+        lastKey = key; lastHandle = null; showHandle(); setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes);
+        return;
+      }
       lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(sh),
         note: 'FOR THE EAZAO POTTER X-1 CLAY PRINTER ONLY - do not run this file on any other printer',
         source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') });
@@ -4501,6 +4649,8 @@ var ClayShapes = (function () {
     if (/^TOO TALL/.test(w)) return 'Too tall for the printer. Make it shorter.';
     if (/^Narrow base/.test(w)) return 'The foot is narrow for how tall this is, so it could wobble while printing. Widen the bottom of the side shape.';
     if (/^Base outline is not/.test(w)) return 'The foot is an unusual shape, so it\u2019s filled with straight lines instead of rings. It still prints fine.';
+    if ((m = /^Top tilts up to (\d+)/.exec(w)))
+      return 'The rim climbs steeply in places (about ' + m[1] + '\u00b0 at its steepest). The printer can build it, but watch that the nozzle doesn\u2019t brush the high side as it goes round.';
     if (/^Non-planar top: thinnest/.test(w)) return 'The rim slopes too steeply for the printer to build smoothly. Use a gentler slope.';
     if (/^Very small piece/.test(w)) return 'This is very small: details narrower than the 3 mm clay line will disappear.';
     return w;
@@ -4777,6 +4927,7 @@ var ClayShapes = (function () {
   themeColors(); resize();
   if (window.ResizeObserver) new ResizeObserver(resize).observe(view);
   loadPreset('ESPRESSO');
+  autoload();
   pending = false; pushHistory(); updUndo();
 })();
 </script>
