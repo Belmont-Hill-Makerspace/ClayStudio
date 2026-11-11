@@ -40,7 +40,7 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 
 **Outlines:** round, star and spout. Advanced settings also offer an oval.
 
-**Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming. A rim that climbs steeply gets a note to watch that the nozzle doesn't brush the high side. One that climbs more steeply than 60° can't be printed and is refused, in advanced settings too. For students, the wave and tab sliders stop just short of that: a narrow rim or more waves means a shallower dip.
+**Rims:** sloped, wavy and hanger-tab rims are printed directly with tilted (non-planar) layers, so there's no trimming. A rim that climbs steeply gets a note to watch that the nozzle doesn't brush the high side. One that climbs more steeply than 60° can't be printed and is refused, in advanced settings too. Students are limited to 38°, just below where the nozzle was seen to rub: their wave and tab sliders stop just short of it, and a narrow rim or more waves means a shallower dip.
 
 Every shape has built-in limits that keep designs printable. If a change would make the wall lean too far for wet clay, or the piece would need more than one barrel of clay, the page says so in plain language and the save button turns off until it's fixed.
 

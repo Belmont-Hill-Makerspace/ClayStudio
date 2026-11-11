@@ -1,5 +1,5 @@
 {
- "_note": "Nov 10 2026: recorded with the initials AB. POURING moved by at most 0.001 mm (last printed digit) when rim() was made exact; nothing else changed since the Nov 9 audit.",
+ "_note": "Nov 10 2026: TULIP default dip 16 -> 14 mm (rim 40 -> 36 degrees; the first tulip rubbed at 40.5). ORNAMENT default top eased (0.52/0.40 -> 0.55/0.44, steepest lean 44 -> 41 degrees). Earlier: recorded with the initials AB; POURING moved by at most 0.001 mm when rim() was made exact.",
  "ESPRESSO": {
   "sha256": "bdc183a69f01867e71e5e92b7aaac17c0285c9e3ae1fe8b9c8377a694cb013bc",
   "lines": 17702,
@@ -31,9 +31,9 @@
   "ml": 47
  },
  "TULIP": {
-  "sha256": "629932a9ebc5bc320bb8347c7297427fd1fd4debaefad780e18a14b12e0076c5",
+  "sha256": "f77265787e765d004097d42512e4ad94034c9d218dbb86ffafa6688722997084",
   "lines": 59772,
-  "ml": 98
+  "ml": 97
  },
  "VASE": {
   "sha256": "632bc21b5aa725732ec9b284cf3e2f220b711a9b2bfe0c00e1f655e191b6809d",
@@ -51,8 +51,8 @@
   "ml": 114
  },
  "ORNAMENT": {
-  "sha256": "9e35f102291be979f5ea4052104b39e8d6f7438e5164be7320c1f9f1998e5681",
-  "lines": 18333,
+  "sha256": "784b9fdf10b44e4f45c64a86261b3f1a8eb4cf84c6c17c9d2497755957c5cb91",
+  "lines": 18250,
   "ml": 49
  }
 }

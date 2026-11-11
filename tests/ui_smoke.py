@@ -51,6 +51,13 @@ with sync_playwright() as p:
     pg.reload(); pg.wait_for_timeout(2500)
     if pg.evaluate("() => document.querySelector('.chip[aria-pressed=true]').dataset.preset") != 'TULIP' or int(float(pg.input_value('#in_width'))) != 70:
         fails.append('reload did not bring the design back')
+    # students: hanger tabs stop at the 45 degree student limit, and the piece stays printable
+    pg.click('[data-preset=ORNAMENT]'); pg.wait_for_timeout(900)
+    pg.evaluate("() => document.querySelector('#rim button[data-v=TABS]').click()"); pg.wait_for_timeout(1500)
+    setn('tab_h', 10); pg.wait_for_timeout(1500)
+    if int(float(pg.input_value('#in_tab_h'))) > 4: fails.append('student hanger tabs were not capped (got %s mm)' % pg.input_value('#in_tab_h'))
+    if 'Ready' not in pg.inner_text('#status').split('\n')[0]: fails.append('capped student ornament is not ready: ' + pg.inner_text('#status')[:80])
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # teachers: a rim steeper than 60 degrees is refused
     pg.click('#advToggle'); pg.wait_for_timeout(600)
     setn('wave_n', 8); setn('wave_d', 30); pg.wait_for_timeout(2500)

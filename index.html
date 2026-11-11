@@ -2505,7 +2505,7 @@ var ClayShapes = (function () {
     TULIP: { label: 'Tulip vase', outline: 'STAR', width: 90, height: 130, lobes: 12, lobe_depth: 0.12, twist: 70,
       profile: [[0.0, 0.42, 0.42], [0.15, 0.44, 0.44], [0.5, 0.58, 0.58], [0.8, 0.82, 0.82], [1.0, 1.0, 1.0]],
       pattern: 'NONE', depth: 1.0, repeats: 12, pitch: 60, fade_top: 0, fade_bottom: 6, rim: 'WAVE', tilt: 10, drop: 4, tab_h: 8,
-      wave_n: 4, wave_d: 16 },
+      wave_n: 4, wave_d: 14 },     // was 16 (rim 40 degrees, which rubbed on the first print); 14 is 36 degrees
     VASE: { label: 'Star vase', outline: 'STAR', width: 90, height: 150, lobes: 6, lobe_depth: 0.18, twist: 90,
       profile: [[0.0, 0.62, 0.62], [0.25, 0.95, 0.95], [0.55, 1.0, 1.0], [0.8, 0.74, 0.74], [1.0, 0.8, 0.8]],
       pattern: 'NONE', depth: 1.0, repeats: 14, pitch: 60, fade_top: 0, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
@@ -2522,7 +2522,8 @@ var ClayShapes = (function () {
       pattern: 'RIBS', depth: 1.0, repeats: 24, pitch: 40, fade_top: 10, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
       handle: true, handle_top: 14, handle_bot: 22, handle_reach: 30, handle_w: 14, handle_lines: 3 },
     ORNAMENT: { label: 'Ornament', outline: 'STAR', width: 65, height: 70, lobes: 8, lobe_depth: 0.12, twist: 75,
-      profile: [[0.0, 0.58, 0.58], [0.28, 0.88, 0.88], [0.5, 1.0, 1.0], [0.74, 0.86, 0.86], [0.93, 0.52, 0.52], [1.0, 0.40, 0.40]],
+      // top eased Nov 2026 (was 0.52 / 0.40): the first print drooped a little at the top, which leaned 44 degrees; now 41
+      profile: [[0.0, 0.58, 0.58], [0.28, 0.88, 0.88], [0.5, 1.0, 1.0], [0.74, 0.86, 0.86], [0.93, 0.55, 0.55], [1.0, 0.44, 0.44]],
       pattern: 'NONE', depth: 1.0, repeats: 10, pitch: 60, fade_top: 6, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 }
   };
 
@@ -3242,7 +3243,7 @@ var ClayShapes = (function () {
     STACK: { width: [55, 90], height: [50, 100], aspect: 0.7, twist: [-30, 30], patterns: ['NONE', 'RIBS'], rims: ['FLAT'],
       depth: [0.5, 0.8], stack_clear: [1, 2.5], stack_depth: [6, 12] },
     ORNAMENT: { width: [60, 75], height: [62, 85], aspect: 1.05, lobes: [6, 10], lobe_depth: [0.06, 0.15], twist: [-60, 60],
-      patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [5, 10], depth: [0.5, 0.8] }
+      patterns: ['NONE', 'RIBS'], rims: ['FLAT', 'TABS'], tab_h: [4, 10], depth: [0.5, 0.8] }
   };
   // freeform shaping and extra pattern layers: none of these are in the starting shapes, so a new shape starts clean
   var FREE_DEFAULTS = { oval: 0.75, pattern_where: 'ALL', pattern_mask: null, pattern_seed: 1, effects: [], sculpt: null,
@@ -4214,7 +4215,7 @@ var ClayShapes = (function () {
     // a rim can only climb so steeply: if this move would go past it, stay where the last good move left it
     if (d.top) {
       var t = new S.Shape(spec(), 160).rim_tilt(), ci = document.getElementById('cageInfo');
-      if (t > (TEACHER ? RIM_REFUSE : RIM_STUDENT) && t > d.tPrev + 0.05) {     // moves that make it gentler are always fine
+      if (t > (TEACHER ? RIM_REFUSE : RIM_STUDENT_CAP) && t > d.tPrev + 0.05) {     // moves that make it gentler are always fine
         c.scale = keepS; c.lift = keepL;
         if (ci) ci.textContent = 'That\u2019s as steep as the rim can climb here. Spread the rise over more dots, or lift the dots next to it too.';
         return;
@@ -4419,9 +4420,11 @@ var ClayShapes = (function () {
   // ---------- how steep a rim may be ----------
   // The nozzle body is wider than its tip. Going round a rim that climbs steeply, the body can catch the high side.
   // Above 25 degrees the piece gets a note; above 60 it is refused for everyone (the same limit the printer engine
-  // already uses for a flat sloped rim). Students' wave and tab sliders stop just short of that, worked out from
-  // the rim as it is now: a narrow rim, or more waves, makes the same dip steeper.
-  var RIM_REFUSE = 60, RIM_STUDENT = 59.5;
+  // already uses for a flat sloped rim). Students stop at 38 degrees: the first tulip print's rim measured 40.5 degrees
+  // in its G-code and rubbed, so the limit sits a little below that (Matt, Nov 2026). Their wave and tab sliders stop
+  // just short of it, worked out from the rim as it is now (a narrow rim, or more waves, makes the same dip
+  // steeper), and anything over it is blocked.
+  var RIM_REFUSE = 60, RIM_STUDENT = 38, RIM_STUDENT_CAP = 37.5;
   function capRim(sh) {
     var wc = document.getElementById('waveCap'), tc = document.getElementById('tabCap');
     wc.hidden = tc.hidden = true;
@@ -4429,13 +4432,13 @@ var ClayShapes = (function () {
     if (TEACHER) return sh;
     var key = state.rim === 'WAVE' && L.wave_d ? 'wave_d' : (state.rim === 'TABS' && L.tab_h ? 'tab_h' : null);
     if (!key) return sh;
-    var lo = L[key][0], hi = L[key][1], tgt = Math.tan(RIM_STUDENT * Math.PI / 180), cap = hi;
+    var lo = L[key][0], hi = L[key][1], tgt = Math.tan(RIM_STUDENT_CAP * Math.PI / 180), cap = hi;
     for (var pass = 0; pass < 4; pass++) {          // steepness grows about in step with the dip or tab height
       var t = sh.rim_tilt(), v = Number(state[key]);
       if (!(t > 0.01) || !(v > 0)) break;
       var est = Math.floor(v * tgt / Math.tan(t * Math.PI / 180));
       cap = Math.max(lo, Math.min(hi, pass ? Math.min(cap, est) : est));
-      if (v <= cap && t <= RIM_STUDENT) break;
+      if (v <= cap && t <= RIM_STUDENT_CAP) break;
       state[key] = cap; numEls[key][0].value = cap; numEls[key][1].value = cap;
       sh = new S.Shape(spec(), 320);
     }
@@ -4512,6 +4515,7 @@ var ClayShapes = (function () {
         source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') });
       lastKey = key;
       if (lastRes.ok && sh.stack && !sh.stack.ok) (lastRes.warnings = lastRes.warnings || []).push('STACK: shoulder too narrow');
+      if (lastRes.ok && !TEACHER && steep > RIM_STUDENT) (lastRes.warnings = lastRes.warnings || []).push('RIM: ' + Math.round(steep));
       setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes);
       sliceHandle(sh, K);
       var mi = lastRes.ok ? lastRes.max_initials : 0;
@@ -4609,7 +4613,7 @@ var ClayShapes = (function () {
   function overBarrel(res) { return !!res && res.ok && (res.clay_ml || 0) > BARREL_ML; }
   function blocked(res) {
     if (TEACHER || !res || !res.ok) return false;
-    return overBarrel(res) || (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest|STACK:)/.test(w); });
+    return overBarrel(res) || (res.warnings || []).some(function (w) { return /^(Steep overhang|OFF THE BED|TOO TALL|Non-planar top: thinnest|STACK:|RIM:)/.test(w); });
   }
   function drawBottom(res) {
     var cv = document.getElementById('bottom'), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -4649,6 +4653,9 @@ var ClayShapes = (function () {
     if (/^TOO TALL/.test(w)) return 'Too tall for the printer. Make it shorter.';
     if (/^Narrow base/.test(w)) return 'The foot is narrow for how tall this is, so it could wobble while printing. Widen the bottom of the side shape.';
     if (/^Base outline is not/.test(w)) return 'The foot is an unusual shape, so it\u2019s filled with straight lines instead of rings. It still prints fine.';
+    if ((m = /^RIM: (\d+)/.exec(w)))
+      return 'The rim climbs too steeply for a student print: about ' + m[1] + '\u00b0 at its steepest, and the most is ' + RIM_STUDENT +
+        '\u00b0, where the nozzle starts to rub. Use fewer high points, a smaller dip or shorter tabs, less twist, or make the top wider.';
     if ((m = /^Top tilts up to (\d+)/.exec(w)))
       return 'The rim climbs steeply in places (about ' + m[1] + '\u00b0 at its steepest). The printer can build it, but watch that the nozzle doesn\u2019t brush the high side as it goes round.';
     if (/^Non-planar top: thinnest/.test(w)) return 'The rim slopes too steeply for the printer to build smoothly. Use a gentler slope.';
