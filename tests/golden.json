@@ -1,58 +1,58 @@
 {
- "_note": "Nov 10 2026: TULIP default dip 16 -> 14 mm (rim 40 -> 36 degrees; the first tulip rubbed at 40.5). ORNAMENT default top eased (0.52/0.40 -> 0.55/0.44, steepest lean 44 -> 41 degrees). Earlier: recorded with the initials AB; POURING moved by at most 0.001 mm when rim() was made exact.",
+ "_note": "Nov 12 2026, engine 2.6: every preset changed. Base rings are true inward offsets 0.85 line widths apart (were radial pulls 1 line width apart: gaps on round pieces, heaps on the pouring cup), initials are grooves plus one extra base layer (were a cleared window), tilted layers are at most the layer setting (were up to 1.25x), travels over 20 mm lift 3 mm with a small pull-back, and the lean check uses every point and the same step limit on tilted layers. Before that: Nov 10 TULIP dip 16->14 mm, ORNAMENT top eased.",
  "ESPRESSO": {
-  "sha256": "bdc183a69f01867e71e5e92b7aaac17c0285c9e3ae1fe8b9c8377a694cb013bc",
-  "lines": 17702,
-  "ml": 46
+  "sha256": "90a7aa4674d63157ee55bf5934572e4327af4cd53e86ced38a38361466fe5f17",
+  "lines": 16898,
+  "ml": 50
  },
  "CAPPUCCINO": {
-  "sha256": "8f5a581fc5b6588d3a560fc19eb01eeff4cb9fd5df7d9a3744be9da7c5a2746f",
-  "lines": 33349,
-  "ml": 77
+  "sha256": "cd081896f001253fd8e0317a9e903027a81f56bb24fd20f4b872c56b9b0e648f",
+  "lines": 32129,
+  "ml": 83
  },
  "POURING": {
-  "sha256": "d89f0d75cb6c996ecf0e90cd7527201608fcbf12a15053d04fcde7c888acb38a",
-  "lines": 32840,
-  "ml": 63
+  "sha256": "330f2b2119fade794614e3f438832c51ca14b5719a750ddbaec63f558650df9e",
+  "lines": 39028,
+  "ml": 72
  },
  "BOWL": {
-  "sha256": "1f24cd9953c174e54945ecbee3ff8befab0402ce60f3476880ba64427e9812ac",
-  "lines": 26208,
-  "ml": 59
+  "sha256": "a86b0ae70a052653b33f5cacf983b08bb181ed36fc6eba2423c250ca0d1e2ea5",
+  "lines": 24726,
+  "ml": 69
  },
  "TUMBLER": {
-  "sha256": "0b8a6384e8240d3eefb5cfb33a1ba10e9848a8a0487b51cd0cf90b229b88aef3",
-  "lines": 36055,
-  "ml": 95
+  "sha256": "59ce00e630f2ce062e791d3738aa052bf02473e55e2a6d4bf32908e733e0963a",
+  "lines": 34683,
+  "ml": 103
  },
  "TEALIGHT": {
-  "sha256": "3cac5a60a94c570ba9c194a8585598aab2353390570b013435ce3e73351c0453",
-  "lines": 19956,
-  "ml": 47
+  "sha256": "b6418a9b3e97e0a22fbce47a59f4dbe38aa17a7f32f8dcb33196c2b3ef1e7ded",
+  "lines": 18805,
+  "ml": 55
  },
  "TULIP": {
-  "sha256": "f77265787e765d004097d42512e4ad94034c9d218dbb86ffafa6688722997084",
-  "lines": 59772,
-  "ml": 97
+  "sha256": "06633b2294d7c4fb3da8915098db1547e0d4b0445661c112b4a241f8bfd8b9f1",
+  "lines": 73209,
+  "ml": 99
  },
  "VASE": {
-  "sha256": "632bc21b5aa725732ec9b284cf3e2f220b711a9b2bfe0c00e1f655e191b6809d",
-  "lines": 52309,
-  "ml": 148
+  "sha256": "925638b6298365f1bbe1ccd594f6bcc40594eecd09bb864ee5fbeaa94176f629",
+  "lines": 51479,
+  "ml": 153
  },
  "STACK": {
-  "sha256": "ced9b84ab17c666a4861c17c764e67ac8cd3f2f3c6b9afeccd6cffcbf009e51c",
-  "lines": 28921,
-  "ml": 74
+  "sha256": "ae2cccc0eabc628f8a4453f10306a25a41289ee20ee8c4391d853d61c32f645f",
+  "lines": 27407,
+  "ml": 81
  },
  "MUG": {
-  "sha256": "bdc72cf7d6a8a63385690a9c7b365020b7fa9e09054f683d7efae5c5c26fb339",
-  "lines": 44084,
-  "ml": 114
+  "sha256": "90ebd8396e28e163119a92f2d633b39c47815c8fc28eaea9caa8b1010c438bdf",
+  "lines": 42005,
+  "ml": 124
  },
  "ORNAMENT": {
-  "sha256": "784b9fdf10b44e4f45c64a86261b3f1a8eb4cf84c6c17c9d2497755957c5cb91",
-  "lines": 18250,
-  "ml": 49
+  "sha256": "92be35c684d4e8d55ec956f20e9a0f6567726ea996d87f41e26a9af0003352a9",
+  "lines": 17825,
+  "ml": 52
  }
 }

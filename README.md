@@ -49,18 +49,22 @@ Every shape has built-in limits that keep designs printable. If a change would m
 1. Open the link above in Safari, Chrome or Edge.
 2. Choose a starting shape at the top.
 3. Adjust the size, side shape, freeform shaping, surface pattern, bead texture and rim. The 3D view updates as you go. Use **Undo** or **Start over** if you need to. Your design is saved in the browser as you work, so if the page reloads you can pick up where you left off. On a shared computer, press **Start fresh** to clear the last person's design.
-4. Optionally, add up to 3 initials for the bottom.
+4. Optionally, add up to 3 initials for the bottom. They're pressed into the foot as grooves, with one extra solid layer added above them so the base stays strong.
 5. Use **Watch it print** to see the nozzle build the piece layer by layer.
-6. When the bar under the picture says **Ready to print**, click **Save the print file**.
+6. When the bar under the picture says **Ready to print**, click **Save the print file**. Files are named after the shape, pattern, initials, the date and time, and the print time (for example `espresso_cup_coral_AZ_1112-1432_12min.gcode`). Or type your own name in the **File name** box; the print time is added to it too (`Ava_cup_12min.gcode`).
 7. Copy the `.gcode` file to the printer's SD card, load the clay barrel, and start the print from the printer.
 
 The bar under the picture also shows the print time, the amount of clay, and how many pieces like it one barrel makes.
+
+**Save design** keeps the whole design (including sculpting, painting and the cage) as a small file you can bring back with **Open design**, on any computer. The page's version is shown at the bottom of the controls, and every print file records it along with when it was saved, so a print can always be traced back to what made it.
 
 ## What the print file does
 
 - **Priming loop:** two laps of clay around the piece get the clay flowing evenly before the base starts. Peel the loop away afterwards.
 - **Slower first layer** (15 mm/s) so the base settles evenly on the plate.
-- **Solid base, then one continuous spiral wall** (vase mode), so the wall has no seam.
+- **Solid base, then one continuous spiral wall** (vase mode), so the wall has no seam. The base is laid as rings that follow the outline and slightly overlap, so they fuse into one solid floor.
+- **Lifts on long moves:** when the nozzle crosses the piece without laying clay, it lifts 3 mm so it doesn't drag through what's just been printed.
+- **Tilted rims:** wavy, sloped, tabbed and lifted rims are built from tilted layers, never thicker than the normal layer.
 - **Adaptive layers** (on by default): thinner layers only where the wall flares, for better support and a smoother surface. You can switch this off next to the save button.
 
 ## After printing
@@ -79,6 +83,7 @@ The bar under the picture also shows the print time, the amount of clay, and how
 
 The core shapes and print settings have been printed many times. These newer features work in the print files but haven't been through as many test prints yet. Try a small piece first:
 
+- the slicer engine 2.6 changes (November 2026): overlapping base rings, initials as grooves with an extra base layer, lifts on long moves, and thinner tilted layers
 - bead textures (pearls, knit, diagonal)
 - initials on the foot
 - adaptive layers

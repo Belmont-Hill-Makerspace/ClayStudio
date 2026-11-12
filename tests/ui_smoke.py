@@ -14,7 +14,7 @@ code = re.search(r"TEACHER_CODE\s*=\s*'([^']*)'", open(page, encoding='utf-8').r
 errs, fails = [], []
 with sync_playwright() as p:
     b = p.chromium.launch(args=["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"])
-    pg = b.new_page(viewport={'width': 1400, 'height': 900})
+    pg = b.new_context(viewport={'width': 1400, 'height': 900}, accept_downloads=True).new_page()
     pg.on('pageerror', lambda e: errs.append(str(e)[:200]))
     pg.on('dialog', lambda d: d.accept(code))
     pg.goto(url); pg.wait_for_timeout(1500)
@@ -57,6 +57,16 @@ with sync_playwright() as p:
     setn('tab_h', 10); pg.wait_for_timeout(1500)
     if int(float(pg.input_value('#in_tab_h'))) > 4: fails.append('student hanger tabs were not capped (got %s mm)' % pg.input_value('#in_tab_h'))
     if 'Ready' not in pg.inner_text('#status').split('\n')[0]: fails.append('capped student ornament is not ready: ' + pg.inner_text('#status')[:80])
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # file names, the version stamp, and saving / opening a design
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
+    name = d.value.suggested_filename; head = open(d.value.path(), encoding='utf-8').read(3000)
+    if not re.match(r'^[a-z_]+(_[A-Z]{1,3})?_\d{4}-\d{4}_\d+min\.gcode$', name): fails.append('unexpected print file name: ' + name)
+    if '; made with: Clay Studio ' not in head: fails.append('print file has no version line')
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('saveDesign').click()")
+    dpath = d.value.path(); pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(800)
+    pg.set_input_files('#openFile', str(dpath)); pg.wait_for_timeout(1500)
+    if pg.evaluate("() => document.querySelector('.chip[aria-pressed=true]').dataset.preset") != 'TULIP': fails.append('Open design did not bring the design back')
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # teachers: a rim steeper than 60 degrees is refused
     pg.click('#advToggle'); pg.wait_for_timeout(600)
