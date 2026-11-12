@@ -1673,20 +1673,33 @@ var ClayCore = (function () {
     var a = Math.atan2(p[1] - this.c[1], p[0] - this.c[0]);
     return mod(Math.floor((a + Math.PI) / (2 * Math.PI) * this.NB), this.NB);
   };
-  LoopIndex.prototype.nearest = function (p) {
-    var loop = this.loop, n = loop.length, k0 = this._key(p), seen = {}, cand = [];
-    for (var dk = -3; dk <= 3; dk++) {
-      var bk = this.buckets[mod(k0 + dk, this.NB)];
-      for (var j = 0; j < bk.length; j++) if (!seen[bk[j]]) { seen[bk[j]] = 1; cand.push(bk[j]); }
+  LoopIndex.prototype._prep = function () {   // worked out once (v2.6): candidate lists per bucket, segment data
+    var loop = this.loop, n = loop.length, NB = this.NB, k0, i;
+    this.near = [];
+    for (k0 = 0; k0 < NB; k0++) {
+      var seen = {}, cand = [];
+      for (var dk = -3; dk <= 3; dk++) {
+        var bk = this.buckets[mod(k0 + dk, NB)];
+        for (var j = 0; j < bk.length; j++) if (!seen[bk[j]]) { seen[bk[j]] = 1; cand.push(bk[j]); }
+      }
+      if (!cand.length) for (var c = 0; c < n; c++) cand.push(c);
+      cand.sort(function (a, b) { return a - b; });
+      this.near.push(cand);
     }
-    if (!cand.length) for (var c = 0; c < n; c++) cand.push(c);
-    cand.sort(function (a, b) { return a - b; });
-    var best = 1e99, bq = null;
+    this.segs = [];
+    for (i = 0; i < n; i++) {
+      var ax = loop[i][0], ay = loop[i][1], dx = loop[(i + 1) % n][0] - ax, dy = loop[(i + 1) % n][1] - ay;
+      this.segs.push([ax, ay, dx, dy, dx * dx + dy * dy]);
+    }
+  };
+  LoopIndex.prototype.nearest = function (p) {
+    if (!this.near) this._prep();
+    var px = p[0], py = p[1], cand = this.near[this._key(p)], segs = this.segs, best = 1e99, bq = null;
     for (var q = 0; q < cand.length; q++) {
-      var i = cand[q], ax = loop[i][0], ay = loop[i][1], bx = loop[(i + 1) % n][0], by = loop[(i + 1) % n][1];
-      var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-      var f = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - ax) * dx + (p[1] - ay) * dy) / l2));
-      var qx = ax + f * dx, qy = ay + f * dy, d = (qx - p[0]) * (qx - p[0]) + (qy - p[1]) * (qy - p[1]);
+      var g = segs[cand[q]], ax = g[0], ay = g[1], dx = g[2], dy = g[3], l2 = g[4], f;
+      if (l2 === 0) f = 0;
+      else { f = ((px - ax) * dx + (py - ay) * dy) / l2; f = f < 0 ? 0 : (f > 1 ? 1 : f); }
+      var qx = ax + f * dx, qy = ay + f * dy, d = (qx - px) * (qx - px) + (qy - py) * (qy - py);
       if (d < best) { best = d; bq = [qx, qy]; }
     }
     return [Math.sqrt(best), bq];
@@ -1751,17 +1764,43 @@ var ClayCore = (function () {
     return out;
   }
 
-  // Is point q closer than thr to the closed loop? (Exact distance to its segments; stops at the first one.)
-  function closer_than(q, loop, thr) {
-    var n = loop.length, t2 = thr * thr;
+  // A closed loop's segments with everything closer_than needs worked out once: start, direction, squared length
+  // and bounding box. (Same numbers as working them out on every call, so the results are identical, just faster.)
+  function seg_table(loop) {
+    var n = loop.length, t = [];
     for (var i = 0; i < n; i++) {
-      var a = loop[i], b = loop[(i + 1) % n];
-      if (Math.min(a[0], b[0]) - q[0] > thr || q[0] - Math.max(a[0], b[0]) > thr ||
-        Math.min(a[1], b[1]) - q[1] > thr || q[1] - Math.max(a[1], b[1]) > thr) continue;
-      var dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
-      var f = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / l2));
-      var ex = a[0] + f * dx - q[0], ey = a[1] + f * dy - q[1];
-      if (ex * ex + ey * ey < t2) return true;
+      var a = loop[i], b = loop[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1];
+      t.push([a[0], a[1], dx, dy, dx * dx + dy * dy, Math.min(a[0], b[0]), Math.max(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[1], b[1])]);
+    }
+    // a grid of SEG_CELL mm squares, each listing the segments whose bounding box touches it, so a check only looks
+    // at segments near the point. Any segment within thr of q has a point inside the square q +/- thr, so looking
+    // at the squares that cover it finds every segment that could be close enough: exactly the same answer.
+    var x0 = 1e99, y0 = 1e99, x1 = -1e99, y1 = -1e99, j;
+    for (j = 0; j < t.length; j++) { x0 = Math.min(x0, t[j][5]); x1 = Math.max(x1, t[j][6]); y0 = Math.min(y0, t[j][7]); y1 = Math.max(y1, t[j][8]); }
+    var nx = Math.floor((x1 - x0) / SEG_CELL) + 1, ny = Math.floor((y1 - y0) / SEG_CELL) + 1, cells = [];
+    for (j = 0; j < nx * ny; j++) cells.push([]);
+    for (j = 0; j < t.length; j++) {
+      var cx0 = Math.floor((t[j][5] - x0) / SEG_CELL), cx1 = Math.floor((t[j][6] - x0) / SEG_CELL);
+      var cy0 = Math.floor((t[j][7] - y0) / SEG_CELL), cy1 = Math.floor((t[j][8] - y0) / SEG_CELL);
+      for (var cy = cy0; cy <= cy1; cy++) for (var cx = cx0; cx <= cx1; cx++) cells[cy * nx + cx].push(j);
+    }
+    return { segs: t, x0: x0, y0: y0, nx: nx, ny: ny, cells: cells };
+  }
+  var SEG_CELL = 4.0;
+  // Is point q closer than thr to the loop (given as a seg_table)? Exact distance to its segments; stops at the first.
+  function closer_than(q, tab, thr) {
+    var t2 = thr * thr, qx = q[0], qy = q[1], T = tab.segs;
+    var cx0 = Math.max(0, Math.floor((qx - thr - tab.x0) / SEG_CELL)), cx1 = Math.min(tab.nx - 1, Math.floor((qx + thr - tab.x0) / SEG_CELL));
+    var cy0 = Math.max(0, Math.floor((qy - thr - tab.y0) / SEG_CELL)), cy1 = Math.min(tab.ny - 1, Math.floor((qy + thr - tab.y0) / SEG_CELL));
+    for (var cy = cy0; cy <= cy1; cy++) for (var cx = cx0; cx <= cx1; cx++) {
+      var cell = tab.cells[cy * tab.nx + cx];
+      for (var k = 0; k < cell.length; k++) {
+        var g = T[cell[k]];
+        if (g[5] - qx > thr || qx - g[6] > thr || g[7] - qy > thr || qy - g[8] > thr) continue;
+        var f = g[4] === 0 ? 0 : Math.max(0, Math.min(1, ((qx - g[0]) * g[2] + (qy - g[1]) * g[3]) / g[4]));
+        var ex = g[0] + f * g[2] - qx, ey = g[1] + f * g[3] - qy;
+        if (ex * ex + ey * ey < t2) return true;
+      }
     }
     return false;
   }
@@ -1770,7 +1809,7 @@ var ClayCore = (function () {
   // outline than k ring spacings is dropped, which trims the loops an offset makes at sharp tips (a spout, a lobe).
   // The old way (pull every point toward the centre) piled clay at tips and left gaps on round pieces.
   function offset_inner_loops(pts, step, spacing) {
-    var out = [], cur = pts, k, i;
+    var out = [], cur = pts, k, i, tab = seg_table(pts);
     if (pts.length < 8) return out;
     for (k = 1; k <= 400; k++) {
       var n = cur.length, d = k * step, ring = [], gapmax = 0;
@@ -1778,7 +1817,7 @@ var ClayCore = (function () {
         var a = cur[(i - 2 + n) % n], b = cur[(i + 2) % n], tx = b[0] - a[0], ty = b[1] - a[1], L = hyp(tx, ty);
         if (L < 1e-12) L = 1.0;
         var q = [cur[i][0] - ty / L * step, cur[i][1] + tx / L * step];
-        if (!closer_than(q, pts, d * 0.98)) ring.push(q);
+        if (!closer_than(q, tab, d * 0.98)) ring.push(q);
       }
       if (ring.length < 8) break;
       var m = ring.length;
@@ -4773,7 +4812,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.12';
+  var APP_VERSION = '2026.11.12b';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),
