@@ -1,0 +1,7 @@
+# Mac and Windows folder files
+.DS_Store
+Thumbs.db
+desktop.ini
+# test output
+__pycache__/
+tests/out/
