@@ -58,6 +58,19 @@ with sync_playwright() as p:
     if int(float(pg.input_value('#in_tab_h'))) > 4: fails.append('student hanger tabs were not capped (got %s mm)' % pg.input_value('#in_tab_h'))
     if 'Ready' not in pg.inner_text('#status').split('\n')[0]: fails.append('capped student ornament is not ready: ' + pg.inner_text('#status')[:80])
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # pattern depth up the piece: hidden until ticked, starts at the current depth, students get the depth range;
+    # an extra pattern layer gets the same option
+    pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(1200)
+    pg.evaluate("() => { const c=document.getElementById('depthVary'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1200)
+    top = pg.evaluate("() => { const r=document.querySelector('[data-num=depth_top] input[type=range]'), d=document.querySelector('[data-num=depth] input[type=range]'); return [r.offsetParent!==null, r.value===d.value, r.min===d.min && r.max===d.max]; }")
+    if top != [True, True, True]: fails.append('depth at the top: shown/starts/range = %s' % top)
+    pg.evaluate("() => { const c=document.getElementById('depthVary'); c.checked=false; c.dispatchEvent(new Event('change')); }")
+    pg.evaluate("() => document.getElementById('addEffect').click()"); pg.wait_for_timeout(1000)
+    pg.evaluate("() => { const c=document.querySelector('#effects .effect label.check input'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1200)
+    if pg.evaluate("() => [...document.querySelectorAll('#effects .effect input[type=range]')].filter(r => /Depth at the top/.test(r.getAttribute('aria-label')||'')).length") != 1:
+        fails.append('extra pattern layer has no depth-at-the-top slider')
+    pg.evaluate("() => document.querySelector('#effects .effect .icon-btn').click()"); pg.wait_for_timeout(800)
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # file names, the version stamp, and saving / opening a design
     with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
     name = d.value.suggested_filename; head = open(d.value.path(), encoding='utf-8').read(3000)
