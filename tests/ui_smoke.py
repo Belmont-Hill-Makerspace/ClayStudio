@@ -68,6 +68,18 @@ with sync_playwright() as p:
     pg.set_input_files('#openFile', str(dpath)); pg.wait_for_timeout(1500)
     if pg.evaluate("() => document.querySelector('.chip[aria-pressed=true]').dataset.preset") != 'TULIP': fails.append('Open design did not bring the design back')
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # teachers: print onto a slab = no base in the file, initials off, a header line for the printer
+    pg.click('#advToggle'); pg.wait_for_timeout(800)
+    pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(1200)
+    pg.evaluate("() => { const c=document.getElementById('slab'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1800)
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
+    g = open(d.value.path(), encoding='utf-8').read(); l0 = g[g.find(';LAYER:0'):g.find(';LAYER:1')]
+    if 'PRINT ONTO A SLAB' not in g[:1500]: fails.append('slab file has no slab header line')
+    if sum(1 for l in l0.split('\n') if l.startswith('G1') and ' E' in l) > 700: fails.append('slab file still has a base')
+    if not pg.evaluate("() => document.getElementById('initials').disabled"): fails.append('initials not disabled on a slab')
+    pg.evaluate("() => { const c=document.getElementById('slab'); c.checked=false; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1200)
+    pg.click('#advToggle'); pg.wait_for_timeout(600)
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # teachers: a rim steeper than 60 degrees is refused
     pg.click('#advToggle'); pg.wait_for_timeout(600)
     setn('wave_n', 8); setn('wave_d', 30); pg.wait_for_timeout(2500)

@@ -409,6 +409,8 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <div data-num="Speed" data-label="Speed" data-unit="mm/s" data-min="10" data-max="40" data-step="1"></div>
         <div data-num="Mix" data-label="Clay flow (M163 mix)" data-hint="higher = less clay" data-min="0.7" data-max="0.95" data-step="0.01"></div>
         <div data-num="BaseLayers" data-label="Solid base layers" data-min="0" data-max="6" data-step="1"></div>
+        <label class="check"><input type="checkbox" id="slab"> Print onto a slab <span class="hint">(no base)</span></label>
+        <p class="note" id="slabNote" hidden>The wall prints straight onto a slab you made. Touch off Z on top of the slab. Keep the slab flat and an even thickness, and let it reach about 10 mm past the piece all round (the priming loop prints 5 mm out). Initials are off: stamp the slab instead.</p>
         <div data-num="SkirtLaps" data-label="Priming loop laps" data-hint="0 = off" data-min="0" data-max="3" data-step="1"></div>
         <div data-num="FirstSpeed" data-label="First layer speed" data-unit="mm/s" data-min="8" data-max="40" data-step="1"></div>
         <div data-num="MaxStep" data-label="Overhang warning" data-unit="% of line" data-min="20" data-max="60" data-step="1"></div>
@@ -424,7 +426,7 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <p class="note" id="initFit"></p>
         <button class="reset" data-reset="initials">Clear initials</button>
         <canvas id="bottom" width="300" height="300" aria-label="Bottom layer preview"></canvas>
-        <p class="note">This is the first layer, seen from underneath. The letters sit in a shallow recess on the unglazed foot and read the right way round when you tip the piece forward onto its rim.</p>
+        <p class="note">This is the first layer, seen from underneath. The letters are pressed into the unglazed foot as grooves, with one extra solid layer above them so the base stays strong, and read the right way round when you tip the piece forward onto its rim.</p>
       </details>
 
       <details class="teacher-only">
@@ -3517,6 +3519,16 @@ var ClayShapes = (function () {
     if (brush.on && brush.target === t) stopBrush(); else startBrush(t);
   });
   document.getElementById('adaptive').addEventListener('change', function (e) { state.adaptive = e.target.checked; changed(); });
+  // Print onto a slab: no base (Z is touched off on top of the slab, so nothing else changes), and no initials
+  function syncSlab() {
+    var on = !!state.slab;
+    document.getElementById('slab').checked = on;
+    document.getElementById('slabNote').hidden = !on;
+    document.getElementById('initials').disabled = on;
+    var bl = document.querySelector('[data-num="BaseLayers"]');
+    if (bl) bl.querySelectorAll('input').forEach(function (el) { el.disabled = on; });
+  }
+  document.getElementById('slab').addEventListener('change', function (e) { state.slab = e.target.checked; syncSlab(); changed(); });
   document.getElementById('handleOn').addEventListener('change', function (e) { state.handle = e.target.checked; changed(); });
   document.getElementById('handleBatch').addEventListener('change', function (e) { state.handle_batch = e.target.checked; changed(); });
   // Weave and Coral look right at quite different sizes from ribs or spirals, so picking one sets sizes that suit it
@@ -3706,6 +3718,7 @@ var ClayShapes = (function () {
     document.getElementById('pattern').value = state.pattern;
     document.getElementById('Spiral').checked = !!state.Spiral;
     document.getElementById('adaptive').checked = state.adaptive !== false;
+    syncSlab();
     document.getElementById('handleOn').checked = !!state.handle;
     document.getElementById('handleBatch').checked = !!state.handle_batch;
     document.getElementById('initials').value = state.initials || '';
@@ -4376,7 +4389,7 @@ var ClayShapes = (function () {
       sculpt: state.sculpt, cage: state.cage_on ? state.cage : null };
   }
   function clayS() {
-    return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.BaseLayers,
+    return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.slab ? 0 : state.BaseLayers,
       MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false,
       SkirtLaps: state.SkirtLaps, SkirtGap: 5, FirstSpeed: state.FirstSpeed });
   }
@@ -4629,7 +4642,7 @@ var ClayShapes = (function () {
         lastKey = key; lastHandle = null; showHandle(); setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes);
         return;
       }
-      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.initials, flow: beadFn(sh),
+      lastRes = C.generate(sh.clay_slicer(K), 0, sh.H * K, clayS(), { top: sh.clay_top(K), initials: state.slab ? '' : state.initials, flow: beadFn(sh),
         note: 'FOR THE EAZAO POTTER X-1 CLAY PRINTER ONLY - do not run this file on any other printer',
         source: 'Clay Studio ' + (S.PRESETS[presetKey] ? S.PRESETS[presetKey].label : '') });
       lastKey = key;
@@ -4812,7 +4825,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.12b';
+  var APP_VERSION = '2026.11.13';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),
@@ -4846,6 +4859,7 @@ var ClayShapes = (function () {
     var out = lines.slice(), i = 0;
     while (i < out.length && i < 12 && !/^; source:/.test(out[i])) i++;
     out.splice(i < out.length ? i + 1 : 1, 0, '; made with: Clay Studio ' + APP_VERSION + ' | saved ' + st.text + ' | file ' + name);
+    if (state.slab) out.splice(i < out.length ? i + 2 : 2, 0, '; PRINT ONTO A SLAB: no base in this file. Touch off Z on top of the slab before starting.');
     return out;
   }
   // design files: the whole design (everything Undo remembers), readable by Open design on any computer

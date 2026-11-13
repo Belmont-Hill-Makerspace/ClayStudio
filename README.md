@@ -56,6 +56,8 @@ Every shape has built-in limits that keep designs printable. If a change would m
 
 The bar under the picture also shows the print time, the amount of clay, and how many pieces like it one barrel makes.
 
+**Print onto a slab** (Advanced settings, Clay printer) leaves out the base so the wall prints straight onto a slab you made: touch off Z on top of the slab, keep it flat and an even thickness, and let it reach about 10 mm past the piece. Initials are off in this mode; the print file's header says it's for a slab.
+
 **Save design** keeps the whole design (including sculpting, painting and the cage) as a small file you can bring back with **Open design**, on any computer. The page's version is shown at the bottom of the controls, and every print file records it along with when it was saved, so a print can always be traced back to what made it.
 
 ## What the print file does
