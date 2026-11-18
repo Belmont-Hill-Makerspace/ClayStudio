@@ -411,6 +411,7 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <div data-num="Speed" data-label="Speed" data-unit="mm/s" data-min="10" data-max="40" data-step="1"></div>
         <div data-num="Mix" data-label="Clay flow (M163 mix)" data-hint="higher = less clay" data-min="0.7" data-max="0.95" data-step="0.01"></div>
         <div data-num="BaseLayers" data-label="Solid base layers" data-min="0" data-max="6" data-step="1"></div>
+        <label class="check"><input type="checkbox" id="baseWeave"> Woven base <span class="hint">(test: the middle base layer crosses the rings)</span></label>
         <label class="check"><input type="checkbox" id="slab"> Print onto a slab <span class="hint">(no base)</span></label>
         <p class="note" id="slabNote" hidden>The wall prints straight onto a slab you made. Touch off Z on top of the slab. Keep the slab flat and an even thickness, and let it reach about 10 mm past the piece all round (the priming loop prints 5 mm out). Initials are off: stamp the slab instead.</p>
         <div data-num="SkirtLaps" data-label="Priming loop laps" data-hint="0 = off" data-min="0" data-max="3" data-step="1"></div>
@@ -1586,7 +1587,7 @@ var ClayCore = (function () {
     'M163 S1 P0.15 ;Set Mix Factor', 'M164 S0'];
   var EAZAO_END = ['G92 Z0 E0', 'G1 F1500 Z10 E-2', 'M82', 'M84 ;steppers off'];
   var DEFAULTS = { LayerH: 1.0, LineW: 3.0, Flow: 1.0, FilDia: 1.75, Speed: 25.0, Mix: 0.85, BaseLayers: 3,
-    ZigZag: false, WallLoops: 1, Spacing: 1.0, Spiral: true, Center: true, BedX: 167.0, BedY: 167.0, BedZ: 280.0,
+    ZigZag: false, BaseWeave: false, WallLoops: 1, Spacing: 1.0, Spiral: true, Center: true, BedX: 167.0, BedY: 167.0, BedZ: 280.0,
     MaxStep: 50.0, AutoFix: false, Height: 0.0, Adaptive: false, AdaptMin: 0.6, AdaptStep: 0.75,
     SkirtLaps: 0, SkirtGap: 5.0, FirstSpeed: 0 };
 
@@ -1910,10 +1911,15 @@ var ClayCore = (function () {
       var last = loop[0];
       if (is_base) {
         var inner = base_inner[i] || [];
+        // woven base (option): each odd base layer is one sealing ring, then straight lines crossing the rings below
+        // (0 / 90 degrees on alternate woven layers); only short turns are printed, so nothing runs along the wall
+        var woven = s.BaseWeave && i % 2 === 1;
+        if (woven) inner = inner.slice(0, 1);
         inner.forEach(function (il) { last = closed_loop_moves(moves, il, z, last); });
         var core = inner.length ? inner[inner.length - 1] : loop;
         var bstep = LineW * BASE_RING_SPACING;    // v2.6: the middle is filled at the ring spacing, starting a ring in
-        var segs = inner.length ? scan_infill(core, bstep, i % 2 === 0 ? 45 : -45, bstep) : scan_infill(core, LineW, i % 2 === 0 ? 45 : -45, LineW * 0.5);
+        var segs = woven ? scan_infill(core, bstep, Math.floor(i / 2) % 2 === 0 ? 0 : 90, bstep)
+          : (inner.length ? scan_infill(core, bstep, i % 2 === 0 ? 45 : -45, bstep) : scan_infill(core, LineW, i % 2 === 0 ? 45 : -45, LineW * 0.5));
         if (segs.length) {
           var dF = hyp(segs[0][0][0] - last[0], segs[0][0][1] - last[1]);
           var dL = hyp(segs[segs.length - 1][1][0] - last[0], segs[segs.length - 1][1][1] - last[1]);
@@ -1921,7 +1927,7 @@ var ClayCore = (function () {
         }
         segs.forEach(function (ab) {
           var a = ab[0], b = ab[1], gap = hyp(a[0] - last[0], a[1] - last[1]);
-          moves.push([gap <= LineW * 2.5 ? 'print' : 'travel', a[0], a[1], z]);
+          moves.push([gap <= (woven ? bstep * 1.5 : LineW * 2.5) ? 'print' : 'travel', a[0], a[1], z]);
           moves.push(['print', b[0], b[1], z]);
           last = b;
         });
@@ -2287,7 +2293,7 @@ var ClayCore = (function () {
     s.BaseLayers = Math.trunc(Number(s.BaseLayers));
     s.SkirtLaps = Math.max(0, Math.trunc(Number(s.SkirtLaps)));
     s.WallLoops = Math.max(1, Math.trunc(Number(s.WallLoops)));
-    ['ZigZag', 'Spiral', 'Center', 'AutoFix', 'Adaptive'].forEach(function (k2) { s[k2] = !!s[k2]; });
+    ['ZigZag', 'BaseWeave', 'Spiral', 'Center', 'AutoFix', 'Adaptive'].forEach(function (k2) { s[k2] = !!s[k2]; });
     return s;
   }
 
@@ -2460,7 +2466,7 @@ var ClayCore = (function () {
     var info = ['Size: ' + fixed(w, 1) + ' x ' + fixed(dd2, 1) + ' x ' + fixed(zmax_print, 1) + ' mm (W x D x H)'];
     if (Math.abs(scale - 1) > 1e-6) info.push('Scaled to ' + fixed(scale * 100, 1) + '% of the model (all proportions kept)');
     info.push('Layers: ' + (layers.length + (sl ? sl.n : 0)) + ' (' + Math.min(s.BaseLayers, layers.length) + ' solid ' +
-      (s.ZigZag ? 'zig-zag' : 'concentric') + ' base) | spiral: ' + (s.Spiral ? 'on' : 'off'));
+      (s.ZigZag ? 'zig-zag' : (s.BaseWeave ? 'woven' : 'concentric')) + ' base) | spiral: ' + (s.Spiral ? 'on' : 'off'));
     if (sl) {
       info.push('NON-PLANAR TOP: ' + sl.n + ' wall layers, ' + fixed(sl.thick[0], 2) + '-' + fixed(sl.thick[1], 2) + ' mm thick | rim ' +
         fixed(sl.rim[0], 1) + '-' + fixed(sl.rim[1], 1) + ' mm | top tilts up to ' + fixed(sl.tilt, 0) + ' deg');
@@ -2610,10 +2616,15 @@ var ClayShapes = (function () {
       profile: [[0.0, 0.56, 0.56], [0.22, 0.72, 0.72], [0.5, 0.88, 0.88], [0.8, 0.98, 0.98], [1.0, 1.0, 1.0]],
       pattern: 'DIAMONDS', depth: 1.2, repeats: 14, pitch: 22, fade_top: 12, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8,
       handle: false, handle_top: 12, handle_bot: 14, handle_reach: 28, handle_w: 14, handle_lines: 3 },
-    POURING: { label: 'Pouring cup', outline: 'TEARDROP', width: 73, length: 73, tip_width: 26, height: 55, lobes: 6,
+    // a dosing cup for beans or liquids (Nov 2026, from Matt's own print and the ceramicastudio.lab dosing cup): rounded bowl
+    // from a small foot, a rounded 30 mm spout that rises highest, a lip that curls in around the back and sides just below
+    // the sloped rim (a 5-ring cage that follows the rim) so beans are steered to the spout, and a finger indent on each side
+    POURING: { label: 'Pouring cup', outline: 'TEARDROP', width: 68, length: 46, tip_width: 30, height: 48, lobes: 6,
       lobe_depth: 0.15, twist: 0,
-      profile: [[0.0, 0.74, 0.88], [0.45, 1.0, 1.0], [0.7, 0.98, 0.98], [1.0, 0.92, 0.92]],
-      pattern: 'RIBS', depth: 1.0, repeats: 20, pitch: 40, fade_top: 6, fade_bottom: 8, rim: 'SLOPED', tilt: 12, drop: 3, tab_h: 8 },
+      profile: [[0.0, 0.66, 0.72], [0.4, 0.95, 0.9], [0.75, 1.0, 1.0], [1.0, 1.0, 1.0]],
+      pattern: 'NONE', depth: 1.0, repeats: 20, pitch: 40, fade_top: 6, fade_bottom: 8, rim: 'SLOPED', tilt: 12, drop: 3, tab_h: 8,
+      cage_on: true, cage_rings: 5, cage_points: 8, cage: {rings: 5, points: 8, scale: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.97, 0.92, 0.9, 0.92, 0.97, 1, 1, 0.97, 0.9, 0.9, 0.9, 0.9, 0.9, 0.97, 1.05, 0.95, 0.9, 0.9, 0.9, 0.9, 0.9, 0.95], lift: [0, 0, 0, 0, 0, 0, 0, 0]},
+      sculpt: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/9/P3+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP79/P3/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/vv39vf6/QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/fr39vf7/gAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/+vXx7/D0+f4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD++fTw7/H1+v8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD99u/q6Oru9PsAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD79O7q6Orv9v0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/68uvl4+Tp8Pj/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/48Onk4+Xr8vr/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/48Ofh3+Dm7vb+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP727ubg3+Hn8Pj/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP747+bg3d/k7Pb9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP327OTf3eDm7/j+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/47+fg3t/l7fb9AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP327eXf3uDn7/j/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/68enk4ePo7/j+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP747+jj4eTp8fr/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD89e7p5ujs8/r/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/68+zo5unu9fwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD++fPv7e7y+P0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD9+PLu7e/z+f4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/fn29PX4/P8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//Pj19Pb5/QAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP78+/v9/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//37+/z+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' },
     BOWL: { label: 'Bowl', outline: 'CIRCLE', width: 105, height: 40, lobes: 6, lobe_depth: 0.15, twist: 0,
       profile: [[0.0, 0.62, 0.62], [0.35, 0.83, 0.83], [0.7, 0.95, 0.95], [1.0, 1.0, 1.0]],
       pattern: 'RIBS', depth: 1.0, repeats: 28, pitch: 40, fade_top: 8, fade_bottom: 6, rim: 'FLAT', tilt: 10, drop: 4, tab_h: 8 },
@@ -3357,7 +3368,7 @@ var ClayShapes = (function () {
       handle: true, handle_top: [8, 22], handle_bot: [12, 30], handle_reach: [27, 34], handle_w: [10, 18], handle_lines: [2, 4] },
     BOWL: { width: [85, 125], height: [30, 50], aspect: 0.4, patterns: CUP_TEX, rims: ['FLAT', 'WAVE'], depth: [0.5, 1.0], fade_bottom: [10, 20], pitch_d: 22,
       wave_n: [2, 6], wave_d: [4, 10] },
-    POURING: { width: [60, 78], height: [48, 62], length: [55, 80], tip_width: [20, 30], patterns: ['NONE', 'RIBS', 'DIAMONDS', 'BUBBLES'],
+    POURING: { width: [60, 78], height: [45, 60], length: [36, 50], tip_width: [24, 40], patterns: ['NONE', 'RIBS', 'DIAMONDS', 'BUBBLES'],
       rims: ['SLOPED'], tilt: [8, 12], drop: [2, 4], depth: [0.5, 1.0], pitch_d: 22 },
     TEALIGHT: { width: [65, 90], height: [35, 55], aspect: 0.45, lobes: [5, 9], lobe_depth: [0.05, 0.16], twist: [-45, 45],
       patterns: ['NONE', 'RIBS', 'SPIRAL'], rims: ['FLAT', 'WAVE'], wave_n: [3, 9], wave_d: [4, 12] },
@@ -3536,10 +3547,13 @@ var ClayShapes = (function () {
     document.getElementById('slab').checked = on;
     document.getElementById('slabNote').hidden = !on;
     document.getElementById('initials').disabled = on;
+    document.getElementById('baseWeave').disabled = on;            // no base to weave on a slab
+    document.getElementById('baseWeave').checked = !!state.base_weave;
     var bl = document.querySelector('[data-num="BaseLayers"]');
     if (bl) bl.querySelectorAll('input').forEach(function (el) { el.disabled = on; });
   }
   document.getElementById('slab').addEventListener('change', function (e) { state.slab = e.target.checked; syncSlab(); changed(); });
+  document.getElementById('baseWeave').addEventListener('change', function (e) { state.base_weave = e.target.checked; changed(); });
   document.getElementById('handleOn').addEventListener('change', function (e) { state.handle = e.target.checked; changed(); });
   document.getElementById('handleBatch').addEventListener('change', function (e) { state.handle_batch = e.target.checked; changed(); });
   // Weave and Coral look right at quite different sizes from ribs or spirals, so picking one sets sizes that suit it
@@ -4409,7 +4423,7 @@ var ClayShapes = (function () {
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.slab ? 0 : state.BaseLayers,
-      MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false,
+      MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false, BaseWeave: !!state.base_weave,
       SkirtLaps: state.SkirtLaps, SkirtGap: 5, FirstSpeed: state.FirstSpeed });
   }
   var lastRes = null, lastKey = '', tPrev = 0, tSlice = 0;
@@ -4844,7 +4858,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.13b';
+  var APP_VERSION = '2026.11.13e';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),
@@ -4879,6 +4893,7 @@ var ClayShapes = (function () {
     while (i < out.length && i < 12 && !/^; source:/.test(out[i])) i++;
     out.splice(i < out.length ? i + 1 : 1, 0, '; made with: Clay Studio ' + APP_VERSION + ' | saved ' + st.text + ' | file ' + name);
     if (state.slab) out.splice(i < out.length ? i + 2 : 2, 0, '; PRINT ONTO A SLAB: no base in this file. Touch off Z on top of the slab before starting.');
+    else if (state.base_weave) out.splice(i < out.length ? i + 2 : 2, 0, '; BASE: woven (test) - the middle base layer is straight lines crossing the rings');
     return out;
   }
   // design files: the whole design (everything Undo remembers), readable by Open design on any computer

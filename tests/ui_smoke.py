@@ -93,6 +93,18 @@ with sync_playwright() as p:
     pg.evaluate("() => { const c=document.getElementById('slab'); c.checked=false; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1200)
     pg.click('#advToggle'); pg.wait_for_timeout(600)
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # teachers: the woven base option marks the print file, and is greyed out on a slab
+    pg.click('#advToggle'); pg.wait_for_timeout(800)
+    pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(1200)
+    pg.evaluate("() => { const c=document.getElementById('baseWeave'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(1800)
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
+    g = open(d.value.path(), encoding='utf-8').read()
+    if 'BASE: woven' not in g[:1500]: fails.append('woven base not marked in the print file')
+    pg.evaluate("() => { const c=document.getElementById('slab'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(600)
+    if not pg.evaluate("() => document.getElementById('baseWeave').disabled"): fails.append('woven base not greyed out on a slab')
+    pg.evaluate("() => { for (const id of ['slab','baseWeave']) { const c=document.getElementById(id); c.checked=false; c.dispatchEvent(new Event('change')); } }"); pg.wait_for_timeout(1200)
+    pg.click('#advToggle'); pg.wait_for_timeout(600)
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # teachers: a rim steeper than 60 degrees is refused
     pg.click('#advToggle'); pg.wait_for_timeout(600)
     setn('wave_n', 8); setn('wave_d', 30); pg.wait_for_timeout(2500)

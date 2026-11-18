@@ -1,5 +1,5 @@
 {
- "_note": "Nov 12 2026, engine 2.6: every preset changed. Base rings are true inward offsets 0.85 line widths apart (were radial pulls 1 line width apart: gaps on round pieces, heaps on the pouring cup), initials are grooves plus one extra base layer (were a cleared window), tilted layers are at most the layer setting (were up to 1.25x), travels over 20 mm lift 3 mm with a small pull-back, and the lean check uses every point and the same step limit on tilted layers. Before that: Nov 10 TULIP dip 16->14 mm, ORNAMENT top eased.",
+ "_note": "13 Nov 2026: the Pouring cup starting shape is now a dosing cup (design H4: rounded bowl, rounded 30 mm spout that rises highest, lip curling in around the back and sides just below the sloped rim via a 5-ring cage, finger indents, plain walls, tilt 12). Only POURING changed; every other fingerprint is the same as before. Before that: Nov 12 2026, engine 2.6: every preset changed. Base rings are true inward offsets 0.85 line widths apart (were radial pulls 1 line width apart: gaps on round pieces, heaps on the pouring cup), initials are grooves plus one extra base layer (were a cleared window), tilted layers are at most the layer setting (were up to 1.25x), travels over 20 mm lift 3 mm with a small pull-back, and the lean check uses every point and the same step limit on tilted layers. Before that: Nov 10 TULIP dip 16->14 mm, ORNAMENT top eased.",
  "ESPRESSO": {
   "sha256": "90a7aa4674d63157ee55bf5934572e4327af4cd53e86ced38a38361466fe5f17",
   "lines": 16898,
@@ -11,9 +11,9 @@
   "ml": 83
  },
  "POURING": {
-  "sha256": "330f2b2119fade794614e3f438832c51ca14b5719a750ddbaec63f558650df9e",
-  "lines": 39028,
-  "ml": 72
+  "sha256": "8683e0b1d0193be3336e1ef6438e2f3a0944806715a452991ea5cb7868480561",
+  "lines": 24817,
+  "ml": 44
  },
  "BOWL": {
   "sha256": "a86b0ae70a052653b33f5cacf983b08bb181ed36fc6eba2423c250ca0d1e2ea5",

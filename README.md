@@ -18,7 +18,7 @@ Clay Studio is a single web page. There's nothing to install and no account to m
 | Tumbler | 75 mm wide, 95 mm tall |
 | Mug | 82 mm wide, 95 mm tall, with a handle printed separately |
 | Bowl | 105 mm wide, 40 mm tall, flat or wavy rim |
-| Pouring cup | Teardrop cup with a spout and a sloped rim |
+| Pouring cup | Dosing cup for coffee beans or liquids: rounded bowl, a spout that rises highest, a lip that curls in around the back and sides to steer beans to the spout (a cage), and a finger indent on each side |
 | Tealight holder | 8-point star, flat or petal rim, fits a standard tealight |
 | Star vase | 90 mm wide, 150 mm tall, twisted, flat or wavy rim |
 | Tulip vase | 90 mm wide, 130 mm tall, fluted, with a wavy rim |
@@ -57,6 +57,8 @@ Every shape has built-in limits that keep designs printable. If a change would m
 The bar under the picture also shows the print time, the amount of clay, and how many pieces like it one barrel makes.
 
 **Change depth up the piece** (under a pattern's Depth, and on each extra pattern) gives the pattern a second depth for the top: the depth blends from the foot to the top, so a texture can fade out or grow as it climbs.
+
+**Woven base** (Advanced settings, Clay printer; a test option) makes the middle base layer one ring inside the wall plus straight lines crossing the rings below, to tie the base together. Off by default; the print file's header says when it is on.
 
 **Print onto a slab** (Advanced settings, Clay printer) leaves out the base so the wall prints straight onto a slab you made: touch off Z on top of the slab, keep it flat and an even thickness, and let it reach about 10 mm past the piece. Initials are off in this mode; the print file's header says it's for a slab.
 

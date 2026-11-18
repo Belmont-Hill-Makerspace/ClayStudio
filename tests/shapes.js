@@ -127,6 +127,25 @@ function sliced(key, extra, opts) {
     ' mm2, most clay over 2.5 mm ' + worst.over.toFixed(0) + ' mm2' + (bad.length ? '; failing: ' + bad.join(', ') : ''));
 }
 
+// 7b. the woven base option (T24) holds together the same way, and its middle layer really crosses the rings
+{
+  let worst = { gap: 0, total: 0, over: 0, where: '' }, bad = [], straight = 0;
+  for (const key of Object.keys(S.PRESETS)) {
+    const sh = shp(key, {}), r = C.generate(sh.clay_slicer(K), 0, sh.H * K, C.settings(Object.assign({}, lib.settings(C), { BaseWeave: true })), { top: sh.clay_top(K) });
+    const mv = moves(r.gcode);
+    for (let L = 0; L < 3; L++) {
+      const b = baseMap(mv, L, ePerMm);
+      if (b.largest > worst.gap) worst = Object.assign(worst, { gap: b.largest, where: key + ' layer ' + (L + 1) });
+      worst.total = Math.max(worst.total, b.gaps); worst.over = Math.max(worst.over, b.over25);
+      if (b.largest > 15 || b.gaps > 70 || b.over25 > 10) bad.push(key + ' layer ' + (L + 1));
+    }
+    if (String(r.info).indexOf('woven base') >= 0) straight++;
+  }
+  check('woven bases are solid too, and say so in the report', bad.length === 0 && straight === Object.keys(S.PRESETS).length,
+    'largest gap ' + worst.gap.toFixed(0) + ' mm2 (' + worst.where + '), most gaps in a layer ' + worst.total.toFixed(0) +
+    ' mm2, most clay over 2.5 mm ' + worst.over.toFixed(0) + ' mm2' + (bad.length ? '; failing: ' + bad.join(', ') : ''));
+}
+
 // 8. initials: grooves, not a window, and one more solid layer above them
 {
   const { r, mv } = sliced('ESPRESSO', {}, { initials: 'AZ' }), plain = sliced('ESPRESSO', {});
