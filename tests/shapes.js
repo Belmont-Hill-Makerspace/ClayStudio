@@ -146,6 +146,40 @@ function sliced(key, extra, opts) {
     ' mm2, most clay over 2.5 mm ' + worst.over.toFixed(0) + ' mm2' + (bad.length ? '; failing: ' + bad.join(', ') : ''));
 }
 
+// 7c. two-line walls (T26, option): every starting shape slices, the wall path roughly doubles, and no long travels are added
+{
+  const bad = [], ratios = [];
+  const longT = g => moves(g).filter(m => m.g0 && m.layer >= 1 && Math.hypot(m.x - m.x0, m.y - m.y0) > 20).length;
+  const pathLen = r => +((/Clay path: ([\d.]+) m/.exec(String(r.info)) || [0, 0])[1]);
+  for (const key of Object.keys(S.PRESETS)) {
+    const sh = shp(key, {}), go = two => C.generate(sh.clay_slicer(K), 0, sh.H * K, C.settings(Object.assign({}, lib.settings(C), { TwoLines: two })), { top: sh.clay_top(K) });
+    const a = go(false), b = go(true), ratio = pathLen(b) / pathLen(a);
+    ratios.push(key + ' ' + ratio.toFixed(2));
+    if (!b.ok || ratio < 1.5 || ratio > 2.0 || longT(b.gcode) > longT(a.gcode) || String(b.info).indexOf('walls: 2 lines') < 0) bad.push(key);
+  }
+  check('two-line walls: path about doubles, no new long travels', bad.length === 0, ratios.join(', ') + (bad.length ? '; failing: ' + bad.join(', ') : ''));
+}
+
+// 7d. smooth inner line (T26b): every shape slices, and the inner line is far smoother than the patterned outer line
+{
+  const bad = []; let wob = '';
+  for (const key of Object.keys(S.PRESETS)) {
+    const sh = shp(key, {});
+    const r = C.generate(sh.clay_slicer(K), 0, sh.H * K, C.settings(Object.assign({}, lib.settings(C), { TwoLines: true })), { top: sh.clay_top(K), inner_slicer: sh.clay_slicer(K, true) });
+    if (!r.ok) bad.push(key);
+    if (key === 'TUMBLER' && r.ok) {
+      // one mid-height layer: radius wobble (max - min distance from the layer's centre) of each line
+      const mv = moves(r.gcode).filter(m => m.layer === 40 && !m.g0 && m.de > 0), cut = mv.reduce((b, m, i) => (Math.hypot(m.x - m.x0, m.y - m.y0) > Math.hypot(mv[b].x - mv[b].x0, mv[b].y - mv[b].y0) ? i : b), 0);
+      const A = mv.slice(0, cut), B = mv.slice(cut + 1), cx = mv.reduce((a, m) => a + m.x, 0) / mv.length, cy = mv.reduce((a, m) => a + m.y, 0) / mv.length;
+      const w = L => { const r2 = L.map(m => Math.hypot(m.x - cx, m.y - cy)); return Math.max(...r2) - Math.min(...r2); };
+      const wa = w(A), wb = w(B), outer = Math.max(wa, wb), inner = Math.min(wa, wb);
+      wob = 'tumbler layer 40 wobble: outer ' + outer.toFixed(2) + ' mm, inner ' + inner.toFixed(2) + ' mm';
+      if (!(inner < outer * 0.5)) bad.push('TUMBLER inner line not smooth');
+    }
+  }
+  check('smooth inner line: every shape slices, inner line smooth', bad.length === 0, wob + (bad.length ? '; failing: ' + bad.join(', ') : ''));
+}
+
 // 8. initials: grooves, not a window, and one more solid layer above them
 {
   const { r, mv } = sliced('ESPRESSO', {}, { initials: 'AZ' }), plain = sliced('ESPRESSO', {});

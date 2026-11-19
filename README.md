@@ -58,11 +58,17 @@ The bar under the picture also shows the print time, the amount of clay, and how
 
 **Change depth up the piece** (under a pattern's Depth, and on each extra pattern) gives the pattern a second depth for the top: the depth blends from the foot to the top, so a texture can fade out or grow as it climbs.
 
-**Two-line walls** (Advanced settings, Clay printer; an option) prints every wall layer as two lines side by side (about 5.5 mm thick) for stronger walls on big or heavy pieces. Each layer swaps which line goes first and reverses the second, so there are no long travel moves. It takes about 1.7x the clay and time, and the walls are printed layer by layer instead of as a spiral. The print file's header says when it is on.
+**Two-line walls** (Base and walls section; an option, off by default while it is being tested) prints every wall layer as two lines side by side (about 5.5 mm thick) for stronger walls on big or heavy pieces. Each layer swaps which line goes first and reverses the second, so there are no long travel moves. It takes about 1.7x the clay and time, and the walls are printed layer by layer instead of as a spiral. The print file's header says when it is on.
 
-**Woven base** (Advanced settings, Clay printer; a test option) makes the middle base layer one ring inside the wall plus straight lines crossing the rings below, to tie the base together. Off by default; the print file's header says when it is on.
+**Smooth inner line** (with Two-line walls) keeps the inner line on the shape without its patterns, so the pattern is only on the outside and the inside stays smooth. The two lines overlap about 0.45 mm, so keep patterns 0.5 mm deep or less; Clay Studio adds a note when a pattern is deeper (the lines would sit apart at its peaks).
+
+**Woven base** (Base and walls section; an option, off by default while it is being tested) makes the middle base layer one ring inside the wall plus straight lines crossing the rings below, to tie the base together. Off by default; the print file's header says when it is on.
 
 **Print onto a slab** (Advanced settings, Clay printer) leaves out the base so the wall prints straight onto a slab you made: touch off Z on top of the slab, keep it flat and an even thickness, and let it reach about 10 mm past the piece. Initials are off in this mode; the print file's header says it's for a slab.
+
+**Check a print file** opens any G-code file (from Clay Studio, Cura or anything else) in the Nozzle path view without changing your design: it shows the file's own header notes, its size (and whether it fits the 167 mm plate), layers, print time from the file's speeds, clay path and travel moves, and the clay push rate, with a per-layer chart of push rate and nozzle speed. Watch it print steps through the file. Back to my design (or changing the design) returns to your piece.
+
+On a computer, drag the edge of the settings panel to make it wider or narrower, and drag the handle above the print-file box to make that box taller or shorter; the sizes are remembered in that browser. The Piece view shows the wall as thick as it will print (thicker with Two-line walls).
 
 **Save design** keeps the whole design (including sculpting, painting and the cage) as a small file you can bring back with **Open design**, on any computer. The page's version is shown at the bottom of the controls, and every print file records it along with when it was saved, so a print can always be traced back to what made it.
 

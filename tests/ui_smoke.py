@@ -29,7 +29,7 @@ with sync_playwright() as p:
     pg.click('[data-preset=TUMBLER]'); pg.wait_for_timeout(800)
     pg.click('summary:has-text("Freeform shaping")'); pg.click('#sculptBtn'); pg.wait_for_timeout(800)
     pg.evaluate("""() => { window._rs = -1; const v = document.getElementById('view'); new ResizeObserver(() => window._rs++).observe(v); }""")
-    box = pg.locator('#view canvas').bounding_box(); cx, cy = box['x'] + box['width'] / 2, box['y'] + box['height'] * 0.45
+    box = pg.locator('#view canvas:not(#gvChart)').bounding_box(); cx, cy = box['x'] + box['width'] / 2, box['y'] + box['height'] * 0.45
     pg.mouse.move(cx - 60, cy); pg.mouse.down()
     for i in range(12): pg.mouse.move(cx - 60 + 6 * i, cy); pg.wait_for_timeout(20)
     pg.mouse.up(); pg.wait_for_timeout(2000)
@@ -71,6 +71,16 @@ with sync_playwright() as p:
         fails.append('extra pattern layer has no depth-at-the-top slider')
     pg.evaluate("() => document.querySelector('#effects .effect .icon-btn').click()"); pg.wait_for_timeout(800)
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # check a print file: a downloaded file opens in the nozzle-path view with its header and push rate; Back closes it
+    pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(1500)
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
+    with pg.expect_file_chooser() as fc: pg.evaluate("() => document.getElementById('openGcode').click()")
+    fc.value.set_files(d.value.path()); pg.wait_for_timeout(1500)
+    st = pg.inner_text('#gvStats') if pg.evaluate("() => !document.getElementById('gview').hidden") else ''
+    if 'Push rate' not in st or 'Clay Studio' not in pg.inner_text('#gvHeader'): fails.append('check a print file did not show the file')
+    pg.click('#gvBack'); pg.wait_for_timeout(600)
+    if not pg.evaluate("() => document.getElementById('gview').hidden"): fails.append('Back to my design did not close the file')
+    pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
     # file names, the version stamp, and saving / opening a design
     with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
     name = d.value.suggested_filename; head = open(d.value.path(), encoding='utf-8').read(3000)
@@ -103,7 +113,11 @@ with sync_playwright() as p:
     pg.evaluate("() => { const c=document.getElementById('twoLines'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(2500)
     with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
     if 'WALLS: two lines' not in open(d.value.path(), encoding='utf-8').read()[:1500]: fails.append('two-line walls not marked in the print file')
-    pg.evaluate("() => { const c=document.getElementById('twoLines'); c.checked=false; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(800)
+    pg.evaluate("() => { const c=document.getElementById('smoothInner'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(2500)
+    with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")
+    if 'smooth inner line' not in open(d.value.path(), encoding='utf-8').read()[:1500]: fails.append('smooth inner line not marked in the print file')
+    pg.evaluate("() => { for (const id of ['smoothInner','twoLines']) { const c=document.getElementById(id); c.checked=false; c.dispatchEvent(new Event('change')); } }"); pg.wait_for_timeout(800)
+    if not pg.evaluate("() => document.getElementById('smoothInner').disabled"): fails.append('smooth inner line usable without two-line walls')
     pg.evaluate("() => { const c=document.getElementById('slab'); c.checked=true; c.dispatchEvent(new Event('change')); }"); pg.wait_for_timeout(600)
     if not pg.evaluate("() => document.getElementById('baseWeave').disabled"): fails.append('woven base not greyed out on a slab')
     pg.evaluate("() => { for (const id of ['slab','baseWeave']) { const c=document.getElementById(id); c.checked=false; c.dispatchEvent(new Event('change')); } }"); pg.wait_for_timeout(1200)
