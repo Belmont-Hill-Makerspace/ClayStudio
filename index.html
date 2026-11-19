@@ -429,7 +429,7 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <summary>Base and walls</summary>
         <label class="check"><input type="checkbox" id="baseWeave"> Woven base <span class="hint">(the middle base layer crosses the rings to tie the base together; being tested)</span></label>
         <label class="check"><input type="checkbox" id="twoLines"> Two-line walls <span class="hint">(stronger, about 5.5 mm thick; takes about 1.7x the clay and time; being tested)</span></label>
-        <label class="check sub"><input type="checkbox" id="smoothInner"> Smooth inner line <span class="hint">(pattern only on the outside; keep patterns 0.5 mm deep or less)</span></label>
+        <label class="check sub"><input type="checkbox" id="smoothInner"> Smooth inner line <span class="hint">(pattern only on the outside; deep patterns are made shallower automatically so the lines keep touching)</span></label>
       </details>
 
       <details class="teacher-only">
@@ -4679,10 +4679,22 @@ var ClayShapes = (function () {
 
   // ---------- compute ----------
   function k() { return 1 / (1 - (state.shrink || 0) / 100); }
+  // Smooth inner line: the two lines overlap about 0.45 mm, so the patterns together are kept within 0.4 mm deep (printed)
+  // by shrinking every pattern depth by the same factor. The sliders keep the depths that were set; only the piece and
+  // the print file use the fitted ones, so turning the option off brings the full depth back.
+  var SMOOTH_PATTERN_MAX = 0.4;     // lines 2.55 mm apart touch up to 3.0 mm: a pattern may push out at most 0.45 mm; 0.4 leaves a margin
+  function patternFit() {
+    var tot = 0;
+    if (state.pattern && state.pattern !== 'NONE') tot += Math.max(Math.abs(state.depth || 0), state.depth_vary ? Math.abs(state.depth_top || 0) : 0);
+    (state.effects || []).forEach(function (e) { if (e && e.kind && e.kind !== 'NONE') tot += Math.max(Math.abs(e.depth || 0), e.vary ? Math.abs(e.depth_top || 0) : 0); });
+    var printed = tot * k(), on = !!(state.two_lines && state.smooth_inner) && printed > SMOOTH_PATTERN_MAX;
+    return { f: on ? SMOOTH_PATTERN_MAX / printed : 1, printed: printed };
+  }
   function spec() {
+    var pf = patternFit().f;
     return { outline: state.outline, width: state.width, length: state.length, tip_width: state.tip_width, height: state.height,
       lobes: state.lobes, lobe_depth: state.lobe_depth, twist: state.twist, profile: state.profile, pattern: state.pattern,
-      depth: state.depth, depth_top: state.depth_vary ? state.depth_top : null, repeats: state.repeats, pitch: state.pitch, fade_top: state.fade_top, fade_bottom: state.fade_bottom,
+      depth: state.depth * pf, depth_top: state.depth_vary ? state.depth_top * pf : null, repeats: state.repeats, pitch: state.pitch, fade_top: state.fade_top, fade_bottom: state.fade_bottom,
       rim: state.rim, tilt: state.tilt, drop: state.drop, tab_h: state.tab_h, wave_n: state.wave_n, wave_d: state.wave_d,
       stack: !!state.stack, stack_clear: state.stack_clear, stack_depth: state.stack_depth, stack_lw: state.LineW / k(),
       handle: !!state.handle && handleable(), handle_top: state.handle_top, handle_bot: state.handle_bot, handle_reach: state.handle_reach,
@@ -4691,7 +4703,7 @@ var ClayShapes = (function () {
       oval: state.oval, pattern_seed: state.pattern_seed, pattern_where: state.pattern_where,
       pattern_mask: state.pattern_where === 'PAINT' ? state.pattern_mask : null,
       effects: (state.effects || []).map(function (e) {
-        return { kind: e.kind, depth: e.depth, depth_top: e.vary ? e.depth_top : null, repeats: e.repeats, pitch: e.pitch, seed: e.seed, where: e.where, mask: e.where === 'PAINT' ? e.mask : null };
+        return { kind: e.kind, depth: e.depth * pf, depth_top: e.vary ? e.depth_top * pf : null, repeats: e.repeats, pitch: e.pitch, seed: e.seed, where: e.where, mask: e.where === 'PAINT' ? e.mask : null };
       }),
       sculpt: state.sculpt, cage: state.cage_on ? state.cage : null };
   }
@@ -4958,8 +4970,10 @@ var ClayShapes = (function () {
       lastKey = key;
       if (lastRes.ok && sh.stack && !sh.stack.ok) (lastRes.warnings = lastRes.warnings || []).push('STACK: shoulder too narrow');
       if (lastRes.ok && !TEACHER && steep > RIM_STUDENT) (lastRes.warnings = lastRes.warnings || []).push('RIM: ' + Math.round(steep));
-      if (lastRes.ok && state.two_lines && state.smooth_inner && sh.Atot * K > 0.5)   // the lines overlap 0.45 mm; deeper patterns part them at the peaks
-        (lastRes.warnings = lastRes.warnings || []).push('Smooth inner line: the pattern is up to ' + (sh.Atot * K).toFixed(1) + ' mm deep, so at its peaks the two lines sit apart instead of touching. Keep patterns 0.5 mm deep or less, or turn Smooth inner line off.');
+      var pfit = patternFit();
+      if (lastRes.ok && pfit.f < 1)            // smooth inner line: the patterns were fitted to keep the two lines touching
+        lastRes.info += '\nSmooth inner line: patterns made shallower to fit, ' + pfit.printed.toFixed(1) + ' mm -> ' + SMOOTH_PATTERN_MAX.toFixed(1) +
+          ' mm deep (printed), so the two lines keep touching. Your pattern settings are unchanged; turn the option off for full depth.';
       setPath(lastRes); applyView(); setStatus(lastRes); drawBottom(lastRes); refreshNameHint();
       sliceHandle(sh, K);
       var mi = lastRes.ok ? lastRes.max_initials : 0;
@@ -5137,7 +5151,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.18b';
+  var APP_VERSION = '2026.11.19';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),

@@ -60,7 +60,7 @@ The bar under the picture also shows the print time, the amount of clay, and how
 
 **Two-line walls** (Base and walls section; an option, off by default while it is being tested) prints every wall layer as two lines side by side (about 5.5 mm thick) for stronger walls on big or heavy pieces. Each layer swaps which line goes first and reverses the second, so there are no long travel moves. It takes about 1.7x the clay and time, and the walls are printed layer by layer instead of as a spiral. The print file's header says when it is on.
 
-**Smooth inner line** (with Two-line walls) keeps the inner line on the shape without its patterns, so the pattern is only on the outside and the inside stays smooth. The two lines overlap about 0.45 mm, so keep patterns 0.5 mm deep or less; Clay Studio adds a note when a pattern is deeper (the lines would sit apart at its peaks).
+**Smooth inner line** (with Two-line walls) keeps the inner line on the shape without its patterns, so the pattern is only on the outside and the inside stays smooth. The two lines overlap about 0.45 mm, so Clay Studio automatically makes deeper patterns shallower (all of them together, to 0.4 mm printed) so the lines keep touching at the pattern's peaks. Your pattern settings stay as you set them; the printer report says when patterns were fitted, and turning the option off brings back the full depth.
 
 **Woven base** (Base and walls section; an option, off by default while it is being tested) makes the middle base layer one ring inside the wall plus straight lines crossing the rings below, to tie the base together. Off by default; the print file's header says when it is on.
 
