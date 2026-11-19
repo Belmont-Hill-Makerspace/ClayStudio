@@ -71,6 +71,10 @@ with sync_playwright() as p:
         fails.append('extra pattern layer has no depth-at-the-top slider')
     pg.evaluate("() => document.querySelector('#effects .effect .icon-btn').click()"); pg.wait_for_timeout(800)
     pg.click('[data-preset=TULIP]'); pg.wait_for_timeout(900)
+    # starting shapes are templates: a student can turn a tumbler into a pitcher (spout outline, sloped rim) and print it
+    pg.click('[data-preset=TUMBLER]'); pg.wait_for_timeout(1200)
+    pg.evaluate("() => { document.querySelector('#outline [data-v=TEARDROP]').click(); document.querySelector('#rim [data-v=SLOPED]').click(); }"); pg.wait_for_timeout(2500)
+    if not pg.inner_text('#status').startswith('Ready to print'): fails.append('student tumbler with a spout and sloped rim is not ready to print')
     # check a print file: a downloaded file opens in the nozzle-path view with its header and push rate; Back closes it
     pg.click('[data-preset=ESPRESSO]'); pg.wait_for_timeout(1500)
     with pg.expect_download() as d: pg.evaluate("() => document.getElementById('dlG').click()")

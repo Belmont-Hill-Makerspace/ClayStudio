@@ -261,7 +261,7 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
       <p class="intro">To see what a setting does, hover over it or tap its <b>?</b>. Greyed-out options don’t go with this shape or pattern: hover over or tap one to find out why.</p>
       <details open>
         <summary>Size</summary>
-        <div class="seg teacher-only" id="outline" role="group" aria-label="Outline">
+        <div class="seg" id="outline" role="group" aria-label="Outline">
           <button data-v="CIRCLE">Round</button><button data-v="OVAL">Oval</button><button data-v="STAR">Star</button><button data-v="TEARDROP">Spout</button>
         </div>
         <div class="only-oval">
@@ -3500,7 +3500,10 @@ var ClayShapes = (function () {
   function handleable() {
     return state.outline === 'CIRCLE' && !state.stack && (TEACHER || !!(LIMITS[presetKey] || {}).handle);
   }
-  var STUDENT_COMMON = { depth: [0.5, 1.2], fade_bottom: [8, 20], fade_top: [0, 20], LayerH: [1, 1], bead_amt: [10, 30] };
+  // student ranges for everything; a starting shape's own LIMITS entry overrides these (its width and height always do)
+  var STUDENT_COMMON = { depth: [0.5, 1.2], fade_bottom: [8, 20], fade_top: [0, 20], LayerH: [1, 1], bead_amt: [10, 30],
+    lobes: [3, 12], lobe_depth: [0.02, 0.22], length: [20, 60], tip_width: [16, 44], oval: [0.6, 1], twist: [-90, 90],
+    tilt: [5, 16], drop: [0, 6], wave_n: [2, 8], wave_d: [3, 16], tab_h: [3, 10] };
   var origRange = {};
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -3509,7 +3512,7 @@ var ClayShapes = (function () {
     presetKey = key;
     var p = clone(S.PRESETS[key]), keep = {};
     Object.keys(CLAY_DEFAULTS).forEach(function (k) { keep[k] = (k in state) ? state[k] : CLAY_DEFAULTS[k]; });
-    state = Object.assign({ length: 60, tip_width: 20, wave_n: 4, wave_d: 12, bead: 'STEADY', bead_amt: 25, bead_n: 16,
+    state = Object.assign({ length: 40, tip_width: 30, lobes: 6, lobe_depth: 0.12, tilt: 10, drop: 3, tab_h: 6, wave_n: 4, wave_d: 8, bead: 'STEADY', bead_amt: 25, bead_n: 16,
       stack: false, stack_clear: 1.5, stack_depth: 8 }, HANDLE_DEFAULTS, clone(FREE_DEFAULTS), p, keep);
     document.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.preset === key); });
     applyLimits(); syncAll(); changed(true);
@@ -3582,7 +3585,7 @@ var ClayShapes = (function () {
   function applyLimits() {
     var L = LIMITS[presetKey] || {};
     Object.keys(origRange).forEach(function (k) { setRange(k, origRange[k][0], origRange[k][1]); });
-    var sel = document.getElementById('pattern'), allowed = TEACHER ? ALL_PATTERNS : (L.patterns || ALL_PATTERNS);
+    var sel = document.getElementById('pattern'), allowed = ALL_PATTERNS;      // Nov 2026: every pattern on every shape (students keep the depth limits)
     var offered = studentPatterns(), anyOff = false;
     Array.prototype.forEach.call(sel.options, function (o) {
       if (!o.dataset.name) o.dataset.name = o.textContent;
@@ -3593,7 +3596,7 @@ var ClayShapes = (function () {
     });
     document.getElementById('patternNote').textContent = anyOff ? 'Greyed-out patterns come on other shapes. Hover over or tap the ? to see which.' : '';
     if (allowed.indexOf(state.pattern) < 0) state.pattern = 'NONE';
-    var rims = TEACHER ? ['FLAT', 'WAVE', 'SLOPED', 'TABS'] : (L.rims || ['FLAT']);
+    var rims = ['FLAT', 'WAVE', 'SLOPED', 'TABS'];                                 // Nov 2026: every rim on every shape (students keep the 38 degree rim limit)
     var rimOff = false;
     document.querySelectorAll('#rim button').forEach(function (b) {
       var off = rims.indexOf(b.dataset.v) < 0; if (off) rimOff = true;
@@ -5134,7 +5137,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.18';
+  var APP_VERSION = '2026.11.18b';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),

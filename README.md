@@ -70,6 +70,8 @@ The bar under the picture also shows the print time, the amount of clay, and how
 
 On a computer, drag the edge of the settings panel to make it wider or narrower, and drag the handle above the print-file box to make that box taller or shorter; the sizes are remembered in that browser. The Piece view shows the wall as thick as it will print (thicker with Two-line walls).
 
+**Starting shapes are templates.** Everyone can change the outline (round, oval, star or spout), the rim (flat, wavy, sloped or hanger tabs) and the pattern on any starting shape: turn a tumbler into a pitcher shape, or put a wavy rim on a mug. Students keep each starting shape's width and height limits, safe ranges for everything else, and the usual checks (lean, rim steepness, plate size, barrel), which say what to change when a combination can't print.
+
 **Save design** keeps the whole design (including sculpting, painting and the cage) as a small file you can bring back with **Open design**, on any computer. The page's version is shown at the bottom of the controls, and every print file records it along with when it was saved, so a print can always be traced back to what made it.
 
 ## What the print file does
