@@ -412,6 +412,7 @@ h3.sub { font-size: 15px; margin: 14px 0 2px; }
         <div data-num="Mix" data-label="Clay flow (M163 mix)" data-hint="higher = less clay" data-min="0.7" data-max="0.95" data-step="0.01"></div>
         <div data-num="BaseLayers" data-label="Solid base layers" data-min="0" data-max="6" data-step="1"></div>
         <label class="check"><input type="checkbox" id="baseWeave"> Woven base <span class="hint">(test: the middle base layer crosses the rings)</span></label>
+        <label class="check"><input type="checkbox" id="twoLines"> Two-line walls <span class="hint">(stronger, about 5.5 mm thick; takes about 1.7x the clay and time; no spiral)</span></label>
         <label class="check"><input type="checkbox" id="slab"> Print onto a slab <span class="hint">(no base)</span></label>
         <p class="note" id="slabNote" hidden>The wall prints straight onto a slab you made. Touch off Z on top of the slab. Keep the slab flat and an even thickness, and let it reach about 10 mm past the piece all round (the priming loop prints 5 mm out). Initials are off: stamp the slab instead.</p>
         <div data-num="SkirtLaps" data-label="Priming loop laps" data-hint="0 = off" data-min="0" data-max="3" data-step="1"></div>
@@ -1587,7 +1588,7 @@ var ClayCore = (function () {
     'M163 S1 P0.15 ;Set Mix Factor', 'M164 S0'];
   var EAZAO_END = ['G92 Z0 E0', 'G1 F1500 Z10 E-2', 'M82', 'M84 ;steppers off'];
   var DEFAULTS = { LayerH: 1.0, LineW: 3.0, Flow: 1.0, FilDia: 1.75, Speed: 25.0, Mix: 0.85, BaseLayers: 3,
-    ZigZag: false, BaseWeave: false, WallLoops: 1, Spacing: 1.0, Spiral: true, Center: true, BedX: 167.0, BedY: 167.0, BedZ: 280.0,
+    ZigZag: false, BaseWeave: false, TwoLines: false, WallLoops: 1, Spacing: 1.0, Spiral: true, Center: true, BedX: 167.0, BedY: 167.0, BedZ: 280.0,
     MaxStep: 50.0, AutoFix: false, Height: 0.0, Adaptive: false, AdaptMin: 0.6, AdaptStep: 0.75,
     SkirtLaps: 0, SkirtGap: 5.0, FirstSpeed: 0 };
 
@@ -1888,9 +1889,33 @@ var ClayCore = (function () {
       var t = h * f;
       return Math.abs(t - LayerH) < 1e-9 ? ['print', x, y, z] : ['print', x, y, z, t];
     }
+    var prevEnd = null;
     layers.forEach(function (loop, i) {
       var z = zt ? zt[i] : (i + 1) * LayerH, h = hs ? hs[i] : LayerH, is_base = i < s.BaseLayers, k;
       moves.push(['layer', i, 0.0, z]);
+      var two = s.TwoLines && !is_base && (wall_inner[i] || []).length === 1;
+      if (two) {
+        // two-line walls (option): outer + one inner line a ring-spacing in. The order swaps every layer and the second
+        // line runs the other way, so each layer starts where the last ended and the hop between lines is short.
+        var outer = loop, inner2 = wall_inner[i][0], w2 = i - s.BaseLayers;
+        var first = w2 % 2 === 0 ? outer : inner2, second = w2 % 2 === 0 ? inner2 : outer;
+        if (prevEnd) first = rotate_to_seam(first, prevEnd);
+        moves.push(['travel', first[0][0], first[0][1], z]);
+        var put = function (lp, isOuter) {
+          var Lq = perimeter(lp), aq = 0, pq = lp[0];
+          lp.slice(1).concat([lp[0]]).forEach(function (p) {
+            aq += hyp(p[0] - pq[0], p[1] - pq[1]); pq = p;
+            moves.push(pm(p[0], p[1], z, h, (flow && isOuter) ? flow(aq / Lq, z, i, ztop - z) : 1));
+          });
+        };
+        put(first, w2 % 2 === 0);
+        second = rotate_to_seam(second.slice().reverse(), first[0]);
+        var hop = hyp(second[0][0] - first[0][0], second[0][1] - first[0][1]);
+        moves.push([hop <= LineW * 2.5 ? 'print' : 'travel', second[0][0], second[0][1], z]);
+        put(second, w2 % 2 === 1);
+        prevEnd = second[0];
+        return;
+      }
       if (s.Spiral && !is_base && i > 0) {
         var pts = loop.concat([loop[0]]), seg = [0];
         for (k = 1; k < pts.length; k++) seg.push(seg[k - 1] + hyp(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
@@ -2085,12 +2110,43 @@ var ClayCore = (function () {
       tilt: top.tilt || 0, z0: z0 };
   }
 
+  // two-line walls on tilted layers: each point of the inner line takes the height and thickness of the nearest outer
+  // point (searched on a 3 mm grid; the inner line is only 2.55 mm in, so the rim's slope barely changes over it)
+  function inner_with_heights(inner, pts) {
+    var cell = 3.0, grid = {};
+    pts.forEach(function (p, j) { var key = Math.floor(p[0] / cell) + ',' + Math.floor(p[1] / cell); (grid[key] || (grid[key] = [])).push(j); });
+    return inner.map(function (q) {
+      var cx = Math.floor(q[0] / cell), cy = Math.floor(q[1] / cell), best = -1, bd = 1e99;
+      for (var r = 1; best < 0 && r <= 8; r++) {
+        for (var gx = cx - r; gx <= cx + r; gx++) for (var gy = cy - r; gy <= cy + r; gy++) {
+          var lst = grid[gx + ',' + gy]; if (!lst) continue;
+          for (var m = 0; m < lst.length; m++) {
+            var pp = pts[lst[m]], ddx = pp[0] - q[0], ddy = pp[1] - q[1], d = ddx * ddx + ddy * ddy;
+            if (d < bd) { bd = d; best = lst[m]; }
+          }
+        }
+      }
+      var b = pts[best >= 0 ? best : 0]; return [q[0], q[1], b[2], b[3]];
+    });
+  }
+
   function build_sloped_moves(moves, sl, s, first_index, dx, dy, flow) {
     var z0 = sl.z0, prev_z = null;
     sl.loops.forEach(function (lay, k) {
       var pts = lay.map(function (p) { return [p[0] + dx, p[1] + dy, p[2], p[3]]; }), i;
       moves.push(['layer', first_index + k, 0.0, Math.max.apply(null, pts.map(function (p) { return p[2]; }))]);
-      if (s.Spiral) {
+      var inn2 = s.TwoLines ? offset_inner_loops(pts.map(function (p) { return [p[0], p[1]]; }), s.LineW * BASE_RING_SPACING, s.Spacing) : [];
+      if (inn2.length) {
+        var ip = inner_with_heights(inn2[0], pts), fst = k % 2 === 0 ? pts : ip, snd = k % 2 === 0 ? ip : pts, lastp = null;
+        for (i = moves.length - 1; i >= 0; i--) if (moves[i][0] === 'print') { lastp = moves[i]; break; }
+        if (lastp) fst = rotate_to_seam(fst, [lastp[1], lastp[2]]);
+        moves.push(['travel', fst[0][0], fst[0][1], fst[0][2]]);
+        fst.slice(1).concat([fst[0]]).forEach(function (p) { moves.push(['print', p[0], p[1], p[2], p[3]]); });
+        snd = rotate_to_seam(snd.slice().reverse(), fst[0]);
+        var hop2 = hyp(snd[0][0] - fst[0][0], snd[0][1] - fst[0][1]);
+        moves.push([hop2 <= s.LineW * 2.5 ? 'print' : 'travel', snd[0][0], snd[0][1], snd[0][2]]);
+        snd.slice(1).concat([snd[0]]).forEach(function (p) { moves.push(['print', p[0], p[1], p[2], p[3]]); });
+      } else if (s.Spiral && !s.TwoLines) {
         var ring = pts.concat([pts[0]]), seg = [0];
         for (i = 1; i < ring.length; i++) seg.push(seg[i - 1] + hyp(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]));
         var L = seg[seg.length - 1] > 0 ? seg[seg.length - 1] : 1;
@@ -2293,7 +2349,7 @@ var ClayCore = (function () {
     s.BaseLayers = Math.trunc(Number(s.BaseLayers));
     s.SkirtLaps = Math.max(0, Math.trunc(Number(s.SkirtLaps)));
     s.WallLoops = Math.max(1, Math.trunc(Number(s.WallLoops)));
-    ['ZigZag', 'BaseWeave', 'Spiral', 'Center', 'AutoFix', 'Adaptive'].forEach(function (k2) { s[k2] = !!s[k2]; });
+    ['ZigZag', 'BaseWeave', 'TwoLines', 'Spiral', 'Center', 'AutoFix', 'Adaptive'].forEach(function (k2) { s[k2] = !!s[k2]; });
     return s;
   }
 
@@ -2401,6 +2457,8 @@ var ClayCore = (function () {
       if (ii < s.BaseLayers && !s.ZigZag) {
         base_inner[ii] = offset_inner_loops(l, s.LineW * BASE_RING_SPACING, s.Spacing);
         if (!base_inner[ii].length && perimeter(l) > s.LineW * 12) not_star++;
+      } else if (ii >= s.BaseLayers && s.TwoLines) {
+        wall_inner[ii] = offset_inner_loops(l, s.LineW * BASE_RING_SPACING, s.Spacing).slice(0, 1);   // two-line walls: the first true inward offset
       } else if (ii >= s.BaseLayers && !s.Spiral && s.WallLoops > 1) {
         wall_inner[ii] = radial_inner_loops(l, s.LineW, s.WallLoops - 1);
       }
@@ -2466,7 +2524,7 @@ var ClayCore = (function () {
     var info = ['Size: ' + fixed(w, 1) + ' x ' + fixed(dd2, 1) + ' x ' + fixed(zmax_print, 1) + ' mm (W x D x H)'];
     if (Math.abs(scale - 1) > 1e-6) info.push('Scaled to ' + fixed(scale * 100, 1) + '% of the model (all proportions kept)');
     info.push('Layers: ' + (layers.length + (sl ? sl.n : 0)) + ' (' + Math.min(s.BaseLayers, layers.length) + ' solid ' +
-      (s.ZigZag ? 'zig-zag' : (s.BaseWeave ? 'woven' : 'concentric')) + ' base) | spiral: ' + (s.Spiral ? 'on' : 'off'));
+      (s.ZigZag ? 'zig-zag' : (s.BaseWeave ? 'woven' : 'concentric')) + ' base) | spiral: ' + (s.Spiral && !s.TwoLines ? 'on' : 'off') + (s.TwoLines ? ' | walls: 2 lines' : ''));
     if (sl) {
       info.push('NON-PLANAR TOP: ' + sl.n + ' wall layers, ' + fixed(sl.thick[0], 2) + '-' + fixed(sl.thick[1], 2) + ' mm thick | rim ' +
         fixed(sl.rim[0], 1) + '-' + fixed(sl.rim[1], 1) + ' mm | top tilts up to ' + fixed(sl.tilt, 0) + ' deg');
@@ -3549,11 +3607,13 @@ var ClayShapes = (function () {
     document.getElementById('initials').disabled = on;
     document.getElementById('baseWeave').disabled = on;            // no base to weave on a slab
     document.getElementById('baseWeave').checked = !!state.base_weave;
+    document.getElementById('twoLines').checked = !!state.two_lines;
     var bl = document.querySelector('[data-num="BaseLayers"]');
     if (bl) bl.querySelectorAll('input').forEach(function (el) { el.disabled = on; });
   }
   document.getElementById('slab').addEventListener('change', function (e) { state.slab = e.target.checked; syncSlab(); changed(); });
   document.getElementById('baseWeave').addEventListener('change', function (e) { state.base_weave = e.target.checked; changed(); });
+  document.getElementById('twoLines').addEventListener('change', function (e) { state.two_lines = e.target.checked; changed(); });
   document.getElementById('handleOn').addEventListener('change', function (e) { state.handle = e.target.checked; changed(); });
   document.getElementById('handleBatch').addEventListener('change', function (e) { state.handle_batch = e.target.checked; changed(); });
   // Weave and Coral look right at quite different sizes from ribs or spirals, so picking one sets sizes that suit it
@@ -4423,7 +4483,7 @@ var ClayShapes = (function () {
   }
   function clayS() {
     return C.settings({ LayerH: state.LayerH, LineW: state.LineW, Speed: state.Speed, Mix: state.Mix, BaseLayers: state.slab ? 0 : state.BaseLayers,
-      MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false, BaseWeave: !!state.base_weave,
+      MaxStep: state.MaxStep, Spiral: state.Spiral, Adaptive: state.adaptive !== false, BaseWeave: !!state.base_weave, TwoLines: !!state.two_lines,
       SkirtLaps: state.SkirtLaps, SkirtGap: 5, FirstSpeed: state.FirstSpeed });
   }
   var lastRes = null, lastKey = '', tPrev = 0, tSlice = 0;
@@ -4858,7 +4918,7 @@ var ClayShapes = (function () {
   // ---------- version, file names and design files ----------
   // APP_VERSION is the date this page was last changed. It goes into every print file (with the date and time the
   // file was saved), so a print can always be traced back to the version of Clay Studio that made it.
-  var APP_VERSION = '2026.11.13e';
+  var APP_VERSION = '2026.11.13f';
   document.getElementById('appVersion').textContent = 'Clay Studio version ' + APP_VERSION + ' \u00b7 engine ' + (C.VERSION || '2.5');
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function stampNow() { var d = new Date(); return { name: pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()),
@@ -4894,6 +4954,7 @@ var ClayShapes = (function () {
     out.splice(i < out.length ? i + 1 : 1, 0, '; made with: Clay Studio ' + APP_VERSION + ' | saved ' + st.text + ' | file ' + name);
     if (state.slab) out.splice(i < out.length ? i + 2 : 2, 0, '; PRINT ONTO A SLAB: no base in this file. Touch off Z on top of the slab before starting.');
     else if (state.base_weave) out.splice(i < out.length ? i + 2 : 2, 0, '; BASE: woven (test) - the middle base layer is straight lines crossing the rings');
+    if (state.two_lines) out.splice(i < out.length ? i + 2 : 2, 0, '; WALLS: two lines (about 5.5 mm thick)');
     return out;
   }
   // design files: the whole design (everything Undo remembers), readable by Open design on any computer

@@ -58,6 +58,8 @@ The bar under the picture also shows the print time, the amount of clay, and how
 
 **Change depth up the piece** (under a pattern's Depth, and on each extra pattern) gives the pattern a second depth for the top: the depth blends from the foot to the top, so a texture can fade out or grow as it climbs.
 
+**Two-line walls** (Advanced settings, Clay printer; an option) prints every wall layer as two lines side by side (about 5.5 mm thick) for stronger walls on big or heavy pieces. Each layer swaps which line goes first and reverses the second, so there are no long travel moves. It takes about 1.7x the clay and time, and the walls are printed layer by layer instead of as a spiral. The print file's header says when it is on.
+
 **Woven base** (Advanced settings, Clay printer; a test option) makes the middle base layer one ring inside the wall plus straight lines crossing the rings below, to tie the base together. Off by default; the print file's header says when it is on.
 
 **Print onto a slab** (Advanced settings, Clay printer) leaves out the base so the wall prints straight onto a slab you made: touch off Z on top of the slab, keep it flat and an even thickness, and let it reach about 10 mm past the piece. Initials are off in this mode; the print file's header says it's for a slab.
